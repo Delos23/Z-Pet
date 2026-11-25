@@ -25,7 +25,6 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
 
 
 def load_config() -> dict:
-    """Loads user settings from ~/.config/z-pet/config.json with safe defaults."""
     cfg = dict(DEFAULT_CONFIG)
     if not CONFIG_FILE.exists():
         return cfg
@@ -55,7 +54,6 @@ def has_save() -> bool:
 
 
 def get_save_preview() -> dict | None:
-    """Peeks at saved pet info for the Start-Up screen without advancing offline time."""
     if not SAVE_FILE.exists():
         return None
     try:
@@ -65,6 +63,7 @@ def get_save_preview() -> dict | None:
         age_hours = max(0, int((time.time() - born_at) // 3600))
         return {
             "name": str(data.get("name", "SPARKKIT")),
+            "color": str(data.get("color", "purple")),
             "age_hours": age_hours,
             "bond": int(data.get("bond", 0)),
             "alive": bool(data.get("alive", True)),
@@ -74,20 +73,18 @@ def get_save_preview() -> dict | None:
 
 
 def save_pet(pet: Pet) -> None:
-    """Atomically writes pet state to ~/.config/z-pet/save.json."""
     _atomic_write_json(SAVE_FILE, pet.to_dict())
 
 
-def create_new_pet(name: str = "SPARKKIT") -> Pet:
-    """Creates and saves a brand-new pet, replacing any previous save."""
+def create_new_pet(name: str = "", color: str = "purple") -> Pet:
+    """Creates and saves a brand-new pet; blank name keeps the default SPARKKIT."""
     clean_name = name.strip().upper()[:10] or "SPARKKIT"
-    pet = Pet({"name": clean_name})
+    pet = Pet({"name": clean_name, "color": color})
     save_pet(pet)
     return pet
 
 
 def load_pet(time_scale: float = 1.0) -> tuple[Pet, float]:
-    """Loads saved pet and applies offline elapsed time. Returns (pet, offline_seconds)."""
     if not SAVE_FILE.exists():
         pet = Pet()
         save_pet(pet)

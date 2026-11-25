@@ -1,10 +1,10 @@
-"""Teach Training Drill scene for Z-Pet (raises ATK, DEF, SPD, or INT)."""
+"""Teach Training Drill scene for Z-Pet (raises ATK, DEF, SPD, or INT with daily limit)."""
 
 import pygame
 
 import settings
 from core.animator import load_species_animations
-from core.pet import Pet
+from core.pet import MAX_DAILY_TRAINS, Pet
 from core.save_manager import save_pet
 
 SEL_FILL = (76, 52, 122)
@@ -40,16 +40,16 @@ class TeachScene:
             frame_w=settings.SPRITE_SIZE,
             frame_h=settings.SPRITE_SIZE,
             scale=settings.SPRITE_SCALE,
+            color_id=pet.color,
         )
         self.animator.play("idle", restart=True)
 
         self.phase = "select"  # select -> drill -> result
         self.cursor_idx = 0
 
-        # Timing bar state
         self.round_num = 1
         self.drill_points = 0
-        self.marker_pos = 0.0   # 0.0 to 1.0 across bar
+        self.marker_pos = 0.0
         self.marker_dir = 1.0
         self.marker_speed = 1.15
         self.pause_timer = 0.0
@@ -68,14 +68,12 @@ class TeachScene:
     def _setup_round(self) -> None:
         self.marker_pos = 0.02 if self.round_num % 2 == 1 else 0.98
         self.marker_dir = 1.0 if self.round_num % 2 == 1 else -1.0
-        # Speed ramps slightly each round for fun tension
         self.marker_speed = 1.1 + (self.round_num - 1) * 0.28
         self.pause_timer = 0.0
         self.feedback_text = ""
         self.animator.play("walk", restart=True)
 
     def _zone_widths(self) -> tuple[float, float]:
-        """Returns (good_half_width, perfect_half_width) in normalized 0..1 bar coords."""
         good_half = max(0.11, 0.17 - (self.round_num - 1) * 0.025)
         perf_half = max(0.04, 0.065 - (self.round_num - 1) * 0.01)
         return good_half, perf_half
@@ -108,7 +106,8 @@ class TeachScene:
         self.phase = "result"
         self.animator.play("happy", restart=True, next_anim="idle")
         self.last_reward_toast = (
-            f"{stat_key.upper()} +{self.result['stat_gain']}! +{self.result['bond_gain']} Bond"
+            f"{stat_key.upper()} +{self.result['stat_gain']}! "
+            f"({self.result['remaining_today']}/{MAX_DAILY_TRAINS} left)"
         )
 
     def on_exit(self) -> None:
@@ -160,7 +159,7 @@ class TeachScene:
                         {
                             "pet": self.pet,
                             "return_toast": msg,
-                            "return_anim": "idle",
+                            "return_anim": "happy",
                         },
                     )
         return None
@@ -205,11 +204,13 @@ class TeachScene:
         canvas.fill(settings.COLOR_BG)
 
         if self.phase == "select":
+            rem = self.pet.trainings_remaining
+            rem_col = GOOD_COL if rem > 0 else MISS_COL
             self._draw_top_bar(
                 canvas,
                 f"TEACH {self.pet.name}",
-                f"ENG:{int(self.pet.energy)}%  TRN:{self.pet.training_sessions}",
-                settings.COLOR_ACCENT,
+                f"LEFT:{rem}/{MAX_DAILY_TRAINS}  ENG:{int(self.pet.energy)}%",
+                rem_col,
             )
 
             for idx, (stat_key, short_lbl, drill_name, accent) in enumerate(STAT_DRILLS):
@@ -232,7 +233,6 @@ class TeachScene:
                 canvas.blit(name_s, (62, row_y + 4))
 
                 val = int(self.pet.battle_stats.get(stat_key, 5))
-                # Mini stat bar + numeric value on the right
                 bar_x, bar_y, bar_w, bar_h = 198, row_y + 8, 70, 8
                 pygame.draw.rect(canvas, BAR_BG, (bar_x, bar_y, bar_w, bar_h))
                 fill_w = int(min(1.0, val / 50.0) * bar_w)
@@ -254,7 +254,6 @@ class TeachScene:
                 accent,
             )
 
-            # Sparkkit animated stage
             pygame.draw.ellipse(canvas, (18, 12, 30), pygame.Rect(136, 86, 48, 8))
             canvas.blit(self.animator.get_frame(), (128, 28))
 
@@ -262,7 +261,6 @@ class TeachScene:
                 fb = self.fonts["sans"].render(self.feedback_text, True, self.feedback_col)
                 canvas.blit(fb, ((settings.LOGICAL_WIDTH - fb.get_width()) // 2, 92))
 
-            # Timing bar
             bar_x, bar_y, bar_w, bar_h = 26, 112, 268, 22
             pygame.draw.rect(canvas, BAR_BG, (bar_x, bar_y, bar_w, bar_h), border_radius=4)
 
@@ -277,7 +275,6 @@ class TeachScene:
 
             pygame.draw.rect(canvas, settings.COLOR_ACCENT, (bar_x, bar_y, bar_w, bar_h), 2, border_radius=4)
 
-            # Moving marker needle
             mx = bar_x + int(self.marker_pos * (bar_w - 6))
             pygame.draw.rect(canvas, (20, 14, 30), (mx - 1, bar_y - 3, 8, bar_h + 6), border_radius=2)
             pygame.draw.rect(canvas, CURSOR_COL, (mx, bar_y - 2, 6, bar_h + 4), border_radius=2)
@@ -287,6 +284,7 @@ class TeachScene:
         elif self.phase == "result" and self.result is not None:
             res = self.result
             stat_lbl = res["stat_key"].upper()
+            rem = res["remaining_today"]
             self._draw_top_bar(canvas, "DRILL COMPLETE", f"SCORE {self.drill_points}/6", PERF_COL)
 
             card = pygame.Rect(20, 32, 280, 108)
@@ -313,11 +311,9 @@ class TeachScene:
             )
             canvas.blit(bonus_s, (104, 94))
 
-            eng_s = self.fonts["sans"].render(
-                f"Energy left: {int(self.pet.energy)}%",
-                True,
-                settings.COLOR_MUTED,
-            )
-            canvas.blit(eng_s, (104, 114))
+            rem_txt = f"Daily drills left: {rem}/{MAX_DAILY_TRAINS}"
+            rem_s = self.fonts["sans"].render(rem_txt, True, GOOD_COL if rem > 0 else MISS_COL)
+            canvas.blit(rem_s, (104, 114))
 
-            self._draw_footer(canvas, "Enter:Train Again   Esc:Home")
+            footer = "Enter:Train Again   Esc:Home" if rem > 0 else "Daily limit reached!  Esc:Home"
+            self._draw_footer(canvas, footer)

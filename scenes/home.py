@@ -1,4 +1,4 @@
-"""Home room scene for Z-Pet (care, bedtime routine, clock-synced window, HUD)."""
+"""Home room scene for Z-Pet (care, bedtime routine, decorated room, clock window)."""
 
 from datetime import datetime
 import math
@@ -73,9 +73,119 @@ def draw_pixel_heart(surf: pygame.Surface, x: int, y: int, color: tuple = HEART_
                 surf.set_at((x + c, y + r), color)
 
 
+def draw_room_decorations(
+    canvas: pygame.Surface,
+    pet: Pet,
+    lamp_dim: float,
+    elapsed: float,
+) -> None:
+    """Draws cozy pixel-art bedroom wallpaper, shelf, poster, plant, lamp, and rug."""
+    # 1. Subtle striped wallpaper & baseboard trim
+    canvas.fill(settings.COLOR_BG)
+    stripe_col = (34, 24, 54)
+    for sx in range(0, settings.LOGICAL_WIDTH, 16):
+        pygame.draw.rect(canvas, stripe_col, (sx, 38, 6, 84))
+
+    # Baseboard moulding along bottom of wall
+    pygame.draw.rect(canvas, (54, 38, 82), (0, 121, settings.LOGICAL_WIDTH, 5))
+    pygame.draw.line(canvas, (86, 62, 126), (0, 121), (settings.LOGICAL_WIDTH, 121), 1)
+
+    # 2. Floor + patterned woven rug
+    pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 22))
+    pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 126), (settings.LOGICAL_WIDTH, 126), 1)
+    pygame.draw.ellipse(canvas, (76, 52, 114), (72, 129, 128, 15))
+    pygame.draw.ellipse(canvas, (104, 72, 152), (82, 131, 108, 11), 1)
+    pygame.draw.ellipse(canvas, (62, 42, 94), (94, 133, 84, 7))
+
+    # 3. Wall shelf with books, mini cactus, and Star Catch trophy
+    shelf_x, shelf_y, shelf_w = 84, 74, 62
+    pygame.draw.rect(canvas, (30, 18, 42), (shelf_x + 2, shelf_y + 4, shelf_w, 3))
+    pygame.draw.rect(canvas, (112, 74, 58), (shelf_x, shelf_y, shelf_w, 4))
+    pygame.draw.rect(canvas, (148, 102, 82), (shelf_x, shelf_y, shelf_w, 1))
+    # Shelf brackets
+    pygame.draw.rect(canvas, (82, 54, 44), (shelf_x + 6, shelf_y + 4, 3, 5))
+    pygame.draw.rect(canvas, (82, 54, 44), (shelf_x + shelf_w - 9, shelf_y + 4, 3, 5))
+
+    # Stacked pixel books (left of shelf)
+    pygame.draw.rect(canvas, (212, 86, 112), (shelf_x + 4, shelf_y - 10, 4, 10))
+    pygame.draw.rect(canvas, (94, 178, 232), (shelf_x + 9, shelf_y - 12, 4, 12))
+    pygame.draw.rect(canvas, (238, 194, 88), (shelf_x + 14, shelf_y - 9, 4, 9))
+
+    # Mini potted succulent (center of shelf)
+    pygame.draw.rect(canvas, (186, 102, 72), (shelf_x + 27, shelf_y - 6, 8, 6))
+    pygame.draw.rect(canvas, (214, 128, 96), (shelf_x + 26, shelf_y - 7, 10, 2))
+    pygame.draw.rect(canvas, (82, 188, 112), (shelf_x + 29, shelf_y - 13, 4, 6))
+    pygame.draw.rect(canvas, (118, 222, 144), (shelf_x + 30, shelf_y - 12, 2, 4))
+    pygame.draw.rect(canvas, (82, 188, 112), (shelf_x + 27, shelf_y - 11, 2, 3))
+    pygame.draw.rect(canvas, (82, 188, 112), (shelf_x + 33, shelf_y - 10, 2, 2))
+
+    # Star Catch Trophy (right of shelf — gleams gold once high_score > 0!)
+    trophy_col = (255, 214, 86) if pet.high_score > 0 else (126, 116, 152)
+    trophy_hi = (255, 246, 185) if pet.high_score > 0 else (168, 158, 192)
+    tx = shelf_x + 46
+    pygame.draw.rect(canvas, (88, 62, 48), (tx, shelf_y - 2, 10, 2))
+    pygame.draw.rect(canvas, trophy_col, (tx + 3, shelf_y - 5, 4, 3))
+    pygame.draw.rect(canvas, trophy_col, (tx + 1, shelf_y - 12, 8, 7))
+    pygame.draw.rect(canvas, trophy_hi, (tx + 2, shelf_y - 11, 2, 4))
+    if pet.high_score > 0 and int(elapsed * 3) % 2 == 0:
+        canvas.fill((255, 252, 220), (tx + 9, shelf_y - 14, 2, 2))
+
+    # 4. Framed wall poster (starry planet art)
+    px_x, px_y, px_w, px_h = 166, 48, 28, 24
+    pygame.draw.rect(canvas, (20, 14, 34), (px_x + 2, px_y + 2, px_w, px_h))
+    pygame.draw.rect(canvas, (30, 26, 62), (px_x, px_y, px_w, px_h))
+    pygame.draw.rect(canvas, settings.COLOR_ACCENT, (px_x, px_y, px_w, px_h), 2)
+    # Ringed planet & mini stars inside frame
+    pygame.draw.circle(canvas, (238, 134, 188), (px_x + 14, px_y + 12), 5)
+    pygame.draw.line(canvas, (255, 228, 136), (px_x + 6, px_y + 14), (px_x + 22, px_y + 10), 1)
+    canvas.fill((245, 240, 255), (px_x + 5, px_y + 5, 2, 2))
+    canvas.fill((245, 240, 255), (px_x + 21, px_y + 18, 1, 1))
+
+    # 5. Cozy standing floor lamp next to the bed (glows when awake, dims for bedtime)
+    lamp_x = 223
+    lamp_on = lamp_dim < 0.55
+    if lamp_on:
+        glow = pygame.Surface((46, 46), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (255, 220, 130, 34), (23, 23), 22)
+        pygame.draw.circle(glow, (255, 232, 155, 42), (23, 23), 13)
+        canvas.blit(glow, (lamp_x - 23, 66))
+
+    # Lamp pole & base
+    pygame.draw.rect(canvas, (76, 62, 102), (lamp_x - 1, 88, 3, 36))
+    pygame.draw.rect(canvas, (56, 44, 78), (lamp_x - 7, 122, 15, 4))
+    pygame.draw.rect(canvas, (108, 88, 146), (lamp_x - 5, 122, 11, 1))
+
+    # Lamp shade
+    shade_pts = [(lamp_x - 6, 76), (lamp_x + 6, 76), (lamp_x + 10, 89), (lamp_x - 10, 89)]
+    shade_col = (248, 206, 118) if lamp_on else (112, 86, 148)
+    shade_rim = (255, 236, 178) if lamp_on else (78, 58, 110)
+    pygame.draw.polygon(canvas, shade_col, shade_pts)
+    pygame.draw.polygon(canvas, (34, 22, 52), shade_pts, 1)
+    pygame.draw.line(canvas, shade_rim, (lamp_x - 8, 88), (lamp_x + 8, 88), 1)
+
+    # 6. Potted leafy floor plant on the far left
+    pot_x, pot_y = 6, 114
+    pygame.draw.rect(canvas, (176, 94, 66), (pot_x + 2, pot_y, 12, 11))
+    pygame.draw.rect(canvas, (206, 120, 88), (pot_x, pot_y - 2, 16, 3))
+    pygame.draw.rect(canvas, (132, 68, 48), (pot_x + 2, pot_y + 9, 12, 2))
+    # Leaves
+    pygame.draw.ellipse(canvas, (56, 152, 92), (pot_x + 4, pot_y - 16, 8, 15))
+    pygame.draw.ellipse(canvas, (82, 192, 116), (pot_x - 1, pot_y - 12, 8, 10))
+    pygame.draw.ellipse(canvas, (82, 192, 116), (pot_x + 9, pot_y - 13, 8, 10))
+    pygame.draw.ellipse(canvas, (118, 224, 144), (pot_x + 6, pot_y - 14, 4, 8))
+
+
 def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float) -> None:
     wx, wy, ww, wh = 18, 44, 44, 28
     win_rect = pygame.Rect(wx, wy, ww, wh)
+
+    # Cozy curtains & curtain rod behind/around window
+    pygame.draw.rect(canvas, (132, 96, 186), (wx - 7, wy - 3, ww + 14, 2))
+    pygame.draw.rect(canvas, (98, 64, 148), (wx - 6, wy - 1, 6, wh + 3))
+    pygame.draw.rect(canvas, (124, 86, 180), (wx - 5, wy - 1, 2, wh + 2))
+    pygame.draw.rect(canvas, (98, 64, 148), (wx + ww, wy - 1, 6, wh + 3))
+    pygame.draw.rect(canvas, (124, 86, 180), (wx + ww + 3, wy - 1, 2, wh + 2))
+
     canvas.set_clip(win_rect)
 
     if 5.0 <= hour_float < 7.5:
@@ -130,10 +240,13 @@ def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float)
 
     canvas.set_clip(None)
 
+    # Window frame, mullions & sill
     frame_col = settings.COLOR_ACCENT
     pygame.draw.rect(canvas, frame_col, win_rect, 2)
     pygame.draw.line(canvas, frame_col, (wx + ww // 2, wy), (wx + ww // 2, wy + wh - 1), 1)
     pygame.draw.line(canvas, frame_col, (wx, wy + wh // 2), (wx + ww - 1, wy + wh // 2), 1)
+    pygame.draw.rect(canvas, (112, 74, 58), (wx - 5, wy + wh, ww + 10, 3))
+    pygame.draw.rect(canvas, (148, 102, 82), (wx - 5, wy + wh, ww + 10, 1))
 
 
 def draw_thought_bubble(canvas: pygame.Surface, x: int, y: int, need: str) -> None:
@@ -225,6 +338,7 @@ class HomeScene:
             frame_w=settings.SPRITE_SIZE,
             frame_h=settings.SPRITE_SIZE,
             scale=settings.SPRITE_SCALE,
+            color_id=pet.color,
         )
         self.bed_sprite = load_bed_sprite(sprite_dir)
         self.poop_sprite = load_poop_sprite()
@@ -327,7 +441,7 @@ class HomeScene:
                 save_pet(self.pet)
             self.show_toast(msg)
         elif event.key == pygame.K_r and not self.pet.alive:
-            self.pet = Pet({"name": self.pet.name})
+            self.pet = Pet({"name": self.pet.name, "color": self.pet.color})
             self.bed_state = "awake"
             self.pet_x = 112.0
             self.target_x = 112.0
@@ -445,7 +559,7 @@ class HomeScene:
                 self.animator.play("idle")
                 self.wander_timer -= dt
                 if self.wander_timer <= 0:
-                    self.target_x = float(random.randint(20, BED_X - self.rendered_size - 8))
+                    self.target_x = float(random.randint(24, BED_X - self.rendered_size - 16))
                     self.wander_timer = random.uniform(2.0, 4.5)
 
         if self.pet.alive:
@@ -514,14 +628,14 @@ class HomeScene:
     def render(self, canvas: pygame.Surface) -> None:
         hour_float, clock_str = self._get_clock_info()
 
-        canvas.fill(settings.COLOR_BG)
-        pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 22))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 126), (settings.LOGICAL_WIDTH, 126), 1)
-        pygame.draw.ellipse(canvas, (68, 48, 102), (76, 130, 124, 14))
+        # Decorated bedroom walls, shelf, poster, plant, lamp, floor & rug
+        draw_room_decorations(canvas, self.pet, self.lamp_dim, self.elapsed)
 
+        # Floor poops
         for px_pos in self.pet.poops:
             canvas.blit(self.poop_sprite, (px_pos, 114))
 
+        # Permanent bed + recolored pet
         in_bed_anim = self.bed_state in ("tucking_in", "sleeping", "waking_up")
         if in_bed_anim:
             pygame.draw.ellipse(canvas, (14, 10, 24), pygame.Rect(BED_X + 4, 123, 56, 8))
@@ -532,10 +646,12 @@ class HomeScene:
             pygame.draw.ellipse(canvas, (18, 12, 28), pygame.Rect(int(self.pet_x) + 14, 124, 36, 7))
             canvas.blit(self.animator.get_frame(), (int(self.pet_x), int(self.pet_y)))
 
+        # Smooth indoor lamp dimming overlay
         if self.lamp_dim > 0.01:
             self.dim_overlay.fill((8, 4, 20, int(self.lamp_dim * 120)))
             canvas.blit(self.dim_overlay, (0, 38))
 
+        # Clock window with curtains stays crisp on top of indoor dimness
         draw_clock_window(canvas, hour_float, self.elapsed)
 
         if self.pet.alive and self.bed_state == "sleeping":

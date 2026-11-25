@@ -51,6 +51,7 @@ class StarCatchScene:
             frame_w=settings.SPRITE_SIZE,
             frame_h=settings.SPRITE_SIZE,
             scale=settings.SPRITE_SCALE,
+            color_id=pet.color,
         )
         self.rendered_size = settings.SPRITE_SIZE * settings.SPRITE_SCALE  # 64px
 

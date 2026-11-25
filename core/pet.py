@@ -1,3 +1,4 @@
+from datetime import datetime
 import random
 import time
 
@@ -8,13 +9,16 @@ POOP_INTERVAL_SEC = 90 * 60       # 1 poop roughly every 90 awake minutes
 MAX_OFFLINE_SEC = 48 * 3600       # Cap offline catch-up at 48 hours
 HUG_COOLDOWN_SEC = 6.0
 
+MAX_DAILY_TRAINS = 3              # Prevents maxing stats in a single day
+SLEEP_ENERGY_PER_MIN = 1.25       # Full 0->100% recharge in ~80 min (~+25 in 20 min)
+
 
 def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
     return max(low, min(high, value))
 
 
 class Pet:
-    """Tracks care stats, bond, battle stats, training, poop spawns, and offline decay."""
+    """Tracks care stats, color, bond, battle stats, daily training limit, and offline decay."""
 
     def __init__(self, data: dict | None = None):
         now = time.time()
@@ -22,6 +26,7 @@ class Pet:
 
         self.name: str = data.get("name", "SPARKKIT")
         self.species_id: str = data.get("species_id", "spark_kit")
+        self.color: str = str(data.get("color", "purple"))
         self.stage: str = data.get("stage", "baby")
 
         # Core care stats (0.0 to 100.0)
@@ -43,9 +48,11 @@ class Pet:
         self.poops: list[int] = list(data.get("poops", []))
         self.poop_timer: float = float(data.get("poop_timer", 0.0))
 
-        # Phase 2 & 3 progression stats
+        # Phase 2 & 3 progression stats + daily training cap
         self.care_mistakes: int = int(data.get("care_mistakes", 0))
         self.training_sessions: int = int(data.get("training_sessions", 0))
+        self.trains_today: int = int(data.get("trains_today", 0))
+        self.last_train_date: str = str(data.get("last_train_date", ""))
         self.high_score: int = int(data.get("high_score", 0))
         self.battle_stats: dict = dict(
             data.get("battle_stats", {"atk": 8, "def": 6, "spd": 10, "int": 6})
@@ -54,6 +61,18 @@ class Pet:
     @property
     def age_hours(self) -> int:
         return max(0, int((time.time() - self.born_at) // 3600))
+
+    def _sync_daily_trains(self) -> None:
+        """Resets the daily training count when the calendar date changes."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        if self.last_train_date != today:
+            self.last_train_date = today
+            self.trains_today = 0
+
+    @property
+    def trainings_remaining(self) -> int:
+        self._sync_daily_trains()
+        return max(0, MAX_DAILY_TRAINS - self.trains_today)
 
     def get_need_bubble(self) -> str | None:
         if not self.alive or self.sleeping:
@@ -69,9 +88,11 @@ class Pet:
         return None
 
     def to_dict(self) -> dict:
+        self._sync_daily_trains()
         return {
             "name": self.name,
             "species_id": self.species_id,
+            "color": self.color,
             "stage": self.stage,
             "hunger": round(self.hunger, 2),
             "happy": round(self.happy, 2),
@@ -86,6 +107,8 @@ class Pet:
             "poop_timer": round(self.poop_timer, 2),
             "care_mistakes": self.care_mistakes,
             "training_sessions": self.training_sessions,
+            "trains_today": self.trains_today,
+            "last_train_date": self.last_train_date,
             "high_score": self.high_score,
             "battle_stats": self.battle_stats,
         }
@@ -93,8 +116,8 @@ class Pet:
     def _spawn_poop(self) -> None:
         if len(self.poops) >= MAX_POOPS:
             return
-        slots = [x for x in range(24, 210, 22) if all(abs(x - p) >= 18 for p in self.poops)]
-        spot = random.choice(slots) if slots else random.randint(24, 200)
+        slots = [x for x in range(28, 204, 22) if all(abs(x - p) >= 18 for p in self.poops)]
+        spot = random.choice(slots) if slots else random.randint(28, 198)
         self.poops.append(spot)
         self.clean = clamp(self.clean - 12.0)
 
@@ -106,7 +129,7 @@ class Pet:
         poop_penalty = len(self.poops)
 
         if self.sleeping:
-            self.energy = clamp(self.energy + dt_min * 0.35)
+            self.energy = clamp(self.energy + dt_min * SLEEP_ENERGY_PER_MIN)
             self.hunger = clamp(self.hunger - dt_min * 0.04)
             self.happy = clamp(self.happy - dt_min * 0.02)
             self.clean = clamp(self.clean - dt_min * (0.02 + poop_penalty * 0.05))
@@ -188,7 +211,6 @@ class Pet:
         return True, ""
 
     def complete_minigame(self, score: int) -> dict:
-        """Applies Star Catch mini-game rewards and tracks high score."""
         score = max(0, int(score))
         happy_gain = min(35, 10 + score * 2)
         bond_gain = 2 if score < 6 else (3 if score < 12 else 5)
@@ -220,6 +242,8 @@ class Pet:
             return False, "Press [R] to hatch a new egg."
         if self.sleeping:
             return False, f"Wake {self.name} first [S]."
+        if self.trainings_remaining <= 0:
+            return False, f"Daily limit ({MAX_DAILY_TRAINS}/{MAX_DAILY_TRAINS}) reached!"
         if self.energy < 15.0:
             return False, "Too tired to train! [S] Bed."
         if self.hunger < 15.0:
@@ -227,7 +251,7 @@ class Pet:
         return True, ""
 
     def apply_training(self, stat_key: str, drill_points: int) -> dict:
-        """Applies Teach timing-drill rewards (drill_points: 0 to 6)."""
+        self._sync_daily_trains()
         old_val = int(self.battle_stats.get(stat_key, 5))
 
         if drill_points >= 5:
@@ -242,6 +266,7 @@ class Pet:
         new_val = min(99, old_val + stat_gain)
         self.battle_stats[stat_key] = new_val
         self.training_sessions += 1
+        self.trains_today += 1
 
         self.energy = clamp(self.energy - 12.0)
         self.hunger = clamp(self.hunger - 7.0)
@@ -256,6 +281,7 @@ class Pet:
             "grade": grade,
             "bond_gain": bond_gain,
             "happy_gain": happy_gain,
+            "remaining_today": self.trainings_remaining,
         }
 
     def hug(self) -> tuple[bool, str]:
