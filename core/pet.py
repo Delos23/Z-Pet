@@ -1,13 +1,12 @@
 import random
 import time
 
-# Set to 60.0 while testing so 1 real second = 1 in-game minute (reset to 1.0 for normal play)
-TIME_SCALE = 1.0
+DEFAULT_TIME_SCALE = 1.0
 
 MAX_POOPS = 4
 POOP_INTERVAL_SEC = 90 * 60       # 1 poop roughly every 90 awake minutes
 MAX_OFFLINE_SEC = 48 * 3600       # Cap offline catch-up at 48 hours
-HUG_COOLDOWN_SEC = 6.0            # Prevents spamming bond infinitely in 1 second
+HUG_COOLDOWN_SEC = 6.0
 
 
 def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
@@ -55,7 +54,6 @@ class Pet:
         return max(0, int((time.time() - self.born_at) // 3600))
 
     def get_need_bubble(self) -> str | None:
-        """Returns the most urgent need icon to show above the pet, or None."""
         if not self.alive or self.sleeping:
             return None
         if self.hunger < 35.0:
@@ -91,8 +89,8 @@ class Pet:
     def _spawn_poop(self) -> None:
         if len(self.poops) >= MAX_POOPS:
             return
-        slots = [x for x in range(24, 282, 22) if all(abs(x - p) >= 18 for p in self.poops)]
-        spot = random.choice(slots) if slots else random.randint(24, 280)
+        slots = [x for x in range(24, 210, 22) if all(abs(x - p) >= 18 for p in self.poops)]
+        spot = random.choice(slots) if slots else random.randint(24, 200)
         self.poops.append(spot)
         self.clean = clamp(self.clean - 12.0)
 
@@ -123,10 +121,14 @@ class Pet:
             self.care_mistakes += 1
             self.alive = False
 
-    def apply_offline_time(self, now: float | None = None) -> float:
+    def apply_offline_time(
+        self,
+        now: float | None = None,
+        time_scale: float = DEFAULT_TIME_SCALE,
+    ) -> float:
         now = now if now is not None else time.time()
         raw_elapsed = max(0.0, now - self.last_update)
-        sim_elapsed = min(raw_elapsed * TIME_SCALE, float(MAX_OFFLINE_SEC))
+        sim_elapsed = min(raw_elapsed * time_scale, float(MAX_OFFLINE_SEC))
 
         remaining = sim_elapsed
         while remaining > 0 and self.alive:
@@ -137,8 +139,8 @@ class Pet:
         self.last_update = now
         return raw_elapsed
 
-    def update(self, dt: float) -> None:
-        self._simulate_slice(dt * TIME_SCALE)
+    def update(self, dt: float, time_scale: float = DEFAULT_TIME_SCALE) -> None:
+        self._simulate_slice(dt * time_scale)
         self.last_update = time.time()
 
     # --- Care Actions ---
@@ -147,7 +149,7 @@ class Pet:
         if not self.alive:
             return False, "Press [R] to hatch a new egg."
         if self.sleeping:
-            return False, "Shh! Sparkkit is sleeping."
+            return False, f"Shh! {self.name} is sleeping."
         if self.hunger >= 99.0:
             return False, "Too full for a meal!"
 
@@ -161,9 +163,9 @@ class Pet:
         if not self.alive:
             return False, "Press [R] to hatch a new egg."
         if self.sleeping:
-            return False, "Shh! Sparkkit is sleeping."
+            return False, f"Shh! {self.name} is sleeping."
         if self.hunger >= 99.0 and self.happy >= 99.0:
-            return False, "Sparkkit is already stuffed!"
+            return False, f"{self.name} is already stuffed!"
 
         self.hunger = clamp(self.hunger + 10.0)
         self.happy = clamp(self.happy + 14.0)
@@ -176,7 +178,7 @@ class Pet:
         if not self.alive:
             return False, "Press [R] to hatch a new egg."
         if self.sleeping:
-            return False, "Wake Sparkkit first [S]."
+            return False, f"Wake {self.name} first [S]."
         if self.energy < 15.0:
             return False, "Too tired! Put to bed [S]."
 
@@ -197,8 +199,8 @@ class Pet:
         if now - self._last_hug_time >= HUG_COOLDOWN_SEC:
             self._last_hug_time = now
             self.bond = min(999, self.bond + 3)
-            return True, "Sparkkit purrs! +3 Bond"
-        return True, "Sparkkit loves the pets!"
+            return True, f"{self.name} purrs! +3 Bond"
+        return True, f"{self.name} loves the pets!"
 
     def clean_room(self) -> tuple[bool, str]:
         if not self.alive:
