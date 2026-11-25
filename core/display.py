@@ -1,4 +1,4 @@
-"""Cross-platform display & input backend for Windows PC and Cardputer Zero (/dev/fb_lcd)."""
+"""Cross-platform display, font & input backend for Windows PC and Cardputer Zero (/dev/fb_lcd)."""
 
 import os
 from pathlib import Path
@@ -23,6 +23,7 @@ LINUX_KEYMAP = {
     44: pygame.K_z, 45: pygame.K_x, 46: pygame.K_c, 47: pygame.K_v, 48: pygame.K_b,
     49: pygame.K_n, 50: pygame.K_m,
     57: pygame.K_SPACE,
+    88: pygame.K_F12,
     103: pygame.K_UP, 105: pygame.K_LEFT, 106: pygame.K_RIGHT, 108: pygame.K_DOWN,
 }
 
@@ -31,26 +32,53 @@ INPUT_EVENT_FMT = "llHHi"
 INPUT_EVENT_SIZE = struct.calcsize(INPUT_EVENT_FMT)
 FBIOGET_VSCREENINFO = 0x4600
 
+# Direct system font paths (avoids slow fc-list scanning on Cardputer Zero)
+FONT_PATHS_SANS = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/segoeui.ttf",
+)
+
+FONT_PATHS_MONO = (
+    "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Bold.ttf",
+    "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
+    "/usr/share/fonts/opentype/jetbrains-mono/JetBrainsMono-Bold.otf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "C:/Windows/Fonts/consolab.ttf",
+)
+
 
 def _detect_fb_device() -> str | None:
-    """Returns /dev/fb_lcd (or /dev/fb0) when running headless on the Cardputer Zero."""
-    if not settings.IS_HANDHELD:
+    """Always prefers the 1.9-inch /dev/fb_lcd on Cardputer Zero unless --window is passed."""
+    if "--window" in sys.argv:
         return None
-    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
-        return None
-    for candidate in ("/dev/fb_lcd", "/dev/fb0"):
-        if os.path.exists(candidate):
-            return candidate
+    if os.path.exists("/dev/fb_lcd"):
+        return "/dev/fb_lcd"
+    if settings.IS_HANDHELD and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        if os.path.exists("/dev/fb0"):
+            return "/dev/fb0"
     return None
 
 
 def prepare_environment() -> bool:
-    """Call BEFORE pygame.init(). Returns True if direct /dev/fb_lcd mode will be used."""
+    """Call BEFORE pygame.display.init(). Returns True if direct /dev/fb_lcd mode will be used."""
     if _detect_fb_device() is not None:
         os.environ["SDL_VIDEODRIVER"] = "dummy"
-        os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+        os.environ["SDL_AUDIODRIVER"] = "dummy"
         return True
     return False
+
+
+def load_ui_font(size: int = 12, mono: bool = False) -> pygame.font.Font:
+    """Loads CardputerZero recommended system fonts directly for instant startup."""
+    candidates = FONT_PATHS_MONO if mono else FONT_PATHS_SANS
+    for path in candidates:
+        if os.path.exists(path):
+            return pygame.font.Font(path, size)
+    fallback = "JetBrains Mono,DejaVu Sans Mono,monospace" if mono else "DejaVu Sans,sans-serif"
+    return pygame.font.SysFont(fallback, size, bold=True)
 
 
 class DisplayBackend:
@@ -73,7 +101,7 @@ class DisplayBackend:
             self._init_window()
 
     def _init_window(self) -> None:
-        if "--fullscreen" in sys.argv:
+        if "--fullscreen" in sys.argv and "--window" not in sys.argv:
             pygame.mouse.set_visible(False)
             self.window = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         else:
@@ -86,7 +114,7 @@ class DisplayBackend:
         import fcntl
 
         fb_path = _detect_fb_device() or "/dev/fb_lcd"
-        # Dummy 1x1 mode lets Pygame's convert_alpha() work cleanly without kmsdrm
+        # Dummy 1x1 mode lets Pygame's convert_alpha() work cleanly without touching HDMI
         pygame.display.set_mode((1, 1))
 
         self.fb_fd = os.open(fb_path, os.O_RDWR)
@@ -108,7 +136,6 @@ class DisplayBackend:
         self.fb_size = (xres, yres)
         self.fb_row_bytes = xres * (bpp // 8)
 
-        # Read exact row stride from sysfs if available
         real_fb = Path(os.path.realpath(fb_path)).name
         stride_file = Path(f"/sys/class/graphics/{real_fb}/stride")
         if stride_file.exists():
@@ -173,16 +200,16 @@ class DisplayBackend:
             scaled = pygame.transform.scale(canvas, self.fb_size)
             self.fb_surf.blit(scaled, (0, 0))
 
-        raw = bytes(self.fb_surf.get_buffer())
+        buf = memoryview(self.fb_surf.get_buffer())
         if self.fb_stride == self.fb_row_bytes:
-            os.pwrite(self.fb_fd, raw, 0)
+            os.pwrite(self.fb_fd, buf, 0)
         else:
-            rows = []
             pad = b"\x00" * (self.fb_stride - self.fb_row_bytes)
-            for y in range(self.fb_size[1]):
-                start = y * self.fb_row_bytes
-                rows.append(raw[start : start + self.fb_row_bytes] + pad)
-            os.pwrite(self.fb_fd, b"".join(rows), 0)
+            rows = [
+                buf[y * self.fb_row_bytes : (y + 1) * self.fb_row_bytes]
+                for y in range(self.fb_size[1])
+            ]
+            os.pwrite(self.fb_fd, pad.join(rows) + pad, 0)
 
     def close(self) -> None:
         if self.fb_fd is not None:

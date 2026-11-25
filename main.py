@@ -1,13 +1,18 @@
 from datetime import datetime
 import math
+import os
 import random
 import signal
 import sys
+import time
+
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+
 import pygame
 
 import settings
 from core.animator import load_species_animations
-from core.display import DisplayBackend, prepare_environment
+from core.display import DisplayBackend, load_ui_font, prepare_environment
 from core.pet import Pet
 from core.save_manager import load_pet, save_pet
 
@@ -24,7 +29,7 @@ HEART_COLOR = (255, 105, 165)
 
 # Permanent pet bed placement in the right corner of the room
 BED_X = 240
-WALK_TO_BED_X = BED_X - 6  # Matches Sparkkit's x_off=-3 in sleep_start & wake_up
+WALK_TO_BED_X = BED_X - 6
 
 
 def get_clock_info() -> tuple[float, str]:
@@ -41,6 +46,28 @@ def get_clock_info() -> tuple[float, str]:
     period = "AM" if hh < 12 else "PM"
     hour_12 = hh % 12 or 12
     return hour_float, f"{hour_12}:{mm:02d}{period}"
+
+
+def save_screenshot(canvas: pygame.Surface) -> str:
+    """Saves an exact 320x170 PNG screenshot for CardputerZero Store submission."""
+    dev_dir = settings.ASSETS_DIR / "images"
+    try:
+        dev_dir.mkdir(parents=True, exist_ok=True)
+        target_dir = dev_dir
+        # Test write access (packaged .deb installs under /usr are read-only for non-root)
+        probe = target_dir / ".write_test"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+    except OSError:
+        target_dir = settings.SAVE_DIR / "screenshots"
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+    idx = 1
+    while (target_dir / f"screenshot{idx:02d}.png").exists():
+        idx += 1
+    out_file = target_dir / f"screenshot{idx:02d}.png"
+    pygame.image.save(canvas, str(out_file))
+    return out_file.name
 
 
 def load_bed_sprite(species_dir) -> pygame.Surface:
@@ -89,7 +116,7 @@ def draw_pixel_heart(surf: pygame.Surface, x: int, y: int, color: tuple = HEART_
 
 def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float) -> None:
     """Draws the bedroom window synced to the real clock (Dawn, Day, Sunset, Night)."""
-    wx, wy, ww, wh = 18, 40, 44, 28
+    wx, wy, ww, wh = 18, 44, 44, 28
     win_rect = pygame.Rect(wx, wy, ww, wh)
     canvas.set_clip(win_rect)
 
@@ -153,7 +180,7 @@ def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float)
 
 def draw_thought_bubble(canvas: pygame.Surface, x: int, y: int, need: str) -> None:
     bx = max(6, min(settings.LOGICAL_WIDTH - 28, x))
-    by = max(38, y)
+    by = max(42, y)
 
     pygame.draw.rect(canvas, (245, 240, 255), (bx, by, 20, 15), border_radius=4)
     pygame.draw.rect(canvas, settings.COLOR_ACCENT, (bx, by, 20, 15), 1, border_radius=4)
@@ -186,16 +213,20 @@ def format_duration(seconds: float) -> str:
 
 def draw_stat_bar(
     canvas: pygame.Surface,
-    font: pygame.font.Font,
+    font_mono: pygame.font.Font,
     x: int,
     y: int,
+    slot_w: int,
     label: str,
     value: float,
 ) -> None:
-    lbl = font.render(label, True, settings.COLOR_MUTED)
+    lbl = font_mono.render(label, True, settings.COLOR_MUTED)
     canvas.blit(lbl, (x, y))
 
-    bar_x, bar_y, bar_w, bar_h = x + 22, y + 2, 50, 7
+    bar_x = x + lbl.get_width() + 2
+    bar_y = y + 3
+    bar_w = max(32, slot_w - lbl.get_width() - 5)
+    bar_h = 8
     pygame.draw.rect(canvas, BAR_BG, (bar_x, bar_y, bar_w, bar_h))
 
     if value >= 60:
@@ -213,19 +244,21 @@ def draw_stat_bar(
 
 def draw_hud(
     canvas: pygame.Surface,
-    font: pygame.font.Font,
+    font_sans: pygame.font.Font,
+    font_mono: pygame.font.Font,
     pet: Pet,
     clock_str: str,
     toast_msg: str,
 ) -> None:
-    pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 34))
-    pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 34), (settings.LOGICAL_WIDTH, 34), 1)
+    # Top HUD panel (38px tall for crisp 12px CardputerZero guidelines)
+    pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 38))
+    pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 38), (settings.LOGICAL_WIDTH, 38), 1)
 
-    header = font.render(f"{pet.name}  AGE:{pet.age_hours}h  BND:{pet.bond}", True, settings.COLOR_TEXT)
-    canvas.blit(header, (6, 3))
+    header = font_sans.render(f"{pet.name} {pet.age_hours}h BND:{pet.bond}", True, settings.COLOR_TEXT)
+    canvas.blit(header, (6, 2))
 
     if not pet.alive:
-        status_txt, status_col = "FAINTED", BAR_LOW
+        status_txt, status_col = "FAINT", BAR_LOW
     elif pet.sleeping:
         status_txt, status_col = "ZZZ", settings.COLOR_ACCENT
     elif len(pet.poops) > 0:
@@ -233,43 +266,54 @@ def draw_hud(
     else:
         status_txt, status_col = "OK", BAR_GOOD
 
-    right_surf = font.render(f"{clock_str} {status_txt}", True, status_col)
-    canvas.blit(right_surf, (settings.LOGICAL_WIDTH - right_surf.get_width() - 6, 3))
+    right_surf = font_mono.render(f"{clock_str} {status_txt}", True, status_col)
+    canvas.blit(right_surf, (settings.LOGICAL_WIDTH - right_surf.get_width() - 6, 2))
 
-    draw_stat_bar(canvas, font, 6, 18, "HGR", pet.hunger)
-    draw_stat_bar(canvas, font, 84, 18, "HAP", pet.happy)
-    draw_stat_bar(canvas, font, 162, 18, "ENG", pet.energy)
-    draw_stat_bar(canvas, font, 240, 18, "CLN", pet.clean)
+    # 4 stat bars dynamically sized for 12px fonts across 320px
+    slot_w = 78
+    draw_stat_bar(canvas, font_mono, 4, 20, slot_w, "HG", pet.hunger)
+    draw_stat_bar(canvas, font_mono, 83, 20, slot_w, "HP", pet.happy)
+    draw_stat_bar(canvas, font_mono, 162, 20, slot_w, "EN", pet.energy)
+    draw_stat_bar(canvas, font_mono, 241, 20, slot_w, "CL", pet.clean)
 
+    # Floating toast banner
     if toast_msg:
-        msg_surf = font.render(toast_msg, True, settings.COLOR_TEXT)
+        msg_surf = font_sans.render(toast_msg, True, settings.COLOR_TEXT)
         box_w = msg_surf.get_width() + 14
         box_x = (settings.LOGICAL_WIDTH - box_w) // 2
-        pygame.draw.rect(canvas, settings.COLOR_PANEL, (box_x, 38, box_w, 16), border_radius=3)
-        pygame.draw.rect(canvas, settings.COLOR_ACCENT, (box_x, 38, box_w, 16), 1, border_radius=3)
-        canvas.blit(msg_surf, (box_x + 7, 40))
+        pygame.draw.rect(canvas, settings.COLOR_PANEL, (box_x, 42, box_w, 18), border_radius=3)
+        pygame.draw.rect(canvas, settings.COLOR_ACCENT, (box_x, 42, box_w, 18), 1, border_radius=3)
+        canvas.blit(msg_surf, (box_x + 7, 44))
 
-    pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 150, settings.LOGICAL_WIDTH, 20))
-    pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 150), (settings.LOGICAL_WIDTH, 150), 1)
+    # Bottom controls bar (22px tall for 12px font)
+    pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 148, settings.LOGICAL_WIDTH, 22))
+    pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 148), (settings.LOGICAL_WIDTH, 148), 1)
     if not pet.alive:
         ctrl_text = "[R] Hatch New Egg    [Esc] Quit"
     else:
-        sleep_label = "[S]Wake" if pet.sleeping else "[S]leep"
-        ctrl_text = f"[F]Meal [T]reat [P]lay [C]lean {sleep_label} [H]ug"
+        sleep_label = "S:Wake" if pet.sleeping else "S:Bed"
+        ctrl_text = f"F:Eat T:Trt P:Play C:Cln {sleep_label} H:Hug"
 
-    ctrl_surf = font.render(ctrl_text, True, settings.COLOR_MUTED)
-    canvas.blit(ctrl_surf, ((settings.LOGICAL_WIDTH - ctrl_surf.get_width()) // 2, 154))
+    ctrl_surf = font_sans.render(ctrl_text, True, settings.COLOR_MUTED)
+    canvas.blit(ctrl_surf, ((settings.LOGICAL_WIDTH - ctrl_surf.get_width()) // 2, 152))
 
 
 def main() -> None:
+    boot_start = time.monotonic()
+
     use_fb = prepare_environment()
-    pygame.init()
+    # Selective init skips audio/joystick probing for much faster startup on CM0
+    pygame.display.init()
+    pygame.font.init()
 
     display = DisplayBackend(use_fb=use_fb)
     canvas = pygame.Surface((settings.LOGICAL_WIDTH, settings.LOGICAL_HEIGHT))
-    dim_overlay = pygame.Surface((settings.LOGICAL_WIDTH, 116), pygame.SRCALPHA)
+    dim_overlay = pygame.Surface((settings.LOGICAL_WIDTH, 110), pygame.SRCALPHA)
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont("monospace", 10, bold=True)
+
+    # Recommended CardputerZero system fonts at 12px
+    font_sans = load_ui_font(12, mono=False)
+    font_mono = load_ui_font(12, mono=True)
 
     pet, offline_seconds = load_pet()
 
@@ -335,13 +379,16 @@ def main() -> None:
     signal.signal(signal.SIGTERM, handle_exit_signal)
     signal.signal(signal.SIGINT, handle_exit_signal)
 
+    print(f"Z-Pet ready in {time.monotonic() - boot_start:.2f}s (fb={use_fb})", flush=True)
+
     try:
         while running:
             dt = min(clock.tick(settings.FPS) / 1000.0, 0.1)
             elapsed += dt
 
-            # Pump Cardputer Zero /dev/input/event* keys into Pygame's event queue
             display.poll_hardware_keys()
+
+            capture_requested = False
 
             # --- 1. Handle Input ---
             for event in pygame.event.get():
@@ -350,6 +397,8 @@ def main() -> None:
                 elif event.type == pygame.KEYDOWN:
                     if event.key in (pygame.K_ESCAPE, pygame.K_q):
                         running = False
+                    elif event.key in (pygame.K_0, pygame.K_F12):
+                        capture_requested = True
                     elif event.key == pygame.K_s:
                         ok, msg = pet.toggle_sleep()
                         if ok:
@@ -486,7 +535,7 @@ def main() -> None:
             hour_float, clock_str = get_clock_info()
 
             canvas.fill(settings.COLOR_BG)
-            pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 24))
+            pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 22))
             pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 126), (settings.LOGICAL_WIDTH, 126), 1)
             pygame.draw.ellipse(canvas, (68, 48, 102), (76, 130, 124, 14))
 
@@ -505,14 +554,14 @@ def main() -> None:
 
             if lamp_dim > 0.01:
                 dim_overlay.fill((8, 4, 20, int(lamp_dim * 120)))
-                canvas.blit(dim_overlay, (0, 34))
+                canvas.blit(dim_overlay, (0, 38))
 
             draw_clock_window(canvas, hour_float, elapsed)
 
             if pet.alive and bed_state == "sleeping":
                 bob = int(math.sin(elapsed * 2.5) * 3)
-                zzz = font.render("Zzz", True, settings.COLOR_ACCENT)
-                canvas.blit(zzz, (BED_X + 44, int(pet_y) + 12 + bob))
+                zzz = font_mono.render("Zzz", True, settings.COLOR_ACCENT)
+                canvas.blit(zzz, (BED_X + 42, int(pet_y) + 10 + bob))
 
             need = pet.get_need_bubble()
             if need and bed_state == "awake" and not animator.is_playing_oneshot:
@@ -522,12 +571,18 @@ def main() -> None:
             for h in hearts:
                 draw_pixel_heart(canvas, int(h["x"]), int(h["y"]))
 
-            draw_hud(canvas, font, pet, clock_str, toast_msg)
+            draw_hud(canvas, font_sans, font_mono, pet, clock_str, toast_msg)
+
+            if capture_requested:
+                saved_name = save_screenshot(canvas)
+                show_toast(f"Saved {saved_name}!", duration=1.8)
+
             display.present(canvas)
     finally:
         save_pet(pet)
         display.close()
-        pygame.quit()
+        pygame.font.quit()
+        pygame.display.quit()
 
     sys.exit()
 
