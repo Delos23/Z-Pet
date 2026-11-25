@@ -7,7 +7,6 @@ class Animation:
 
     def __init__(self, frames: list[pygame.Surface], fps: float = 6.0, loop: bool = True):
         self.frames = frames
-        # Pre-flip once on load to save CPU cycles on the Cardputer Zero (CM0)
         self.flipped_frames = [
             pygame.transform.flip(frame, True, False) for frame in frames
         ]
@@ -35,7 +34,6 @@ class Animation:
         for i in range(frame_count):
             rect = pygame.Rect(i * frame_w, 0, frame_w, frame_h)
             cell = sheet.subsurface(rect).copy()
-            # pygame.transform.scale uses nearest-neighbor scaling (keeps pixel art sharp)
             scaled = pygame.transform.scale(cell, target_size)
             frames.append(scaled)
 
@@ -43,7 +41,7 @@ class Animation:
 
 
 class Animator:
-    """State controller that advances frames using delta time (dt)."""
+    """State controller that advances frames and chains one-shot transitions cleanly."""
 
     def __init__(self, animations: dict[str, Animation], default_name: str = "idle"):
         if default_name not in animations:
@@ -52,6 +50,7 @@ class Animator:
         self.animations = animations
         self.default_name = default_name
         self.current_name = default_name
+        self.next_name = default_name
         self.frame_index = 0
         self.timer = 0.0
         self.facing_left = False
@@ -60,13 +59,16 @@ class Animator:
     def is_playing_oneshot(self) -> bool:
         return not self.animations[self.current_name].loop
 
-    def play(self, name: str, restart: bool = False) -> None:
+    def play(self, name: str, restart: bool = False, next_anim: str | None = None) -> None:
         if name not in self.animations:
             return
         if name != self.current_name or restart:
             self.current_name = name
             self.frame_index = 0
             self.timer = 0.0
+            self.next_name = next_anim if next_anim in self.animations else self.default_name
+        elif next_anim in self.animations:
+            self.next_name = next_anim
 
     def update(self, dt: float) -> None:
         anim = self.animations[self.current_name]
@@ -80,8 +82,9 @@ class Animator:
                 if anim.loop:
                     self.frame_index = 0
                 else:
-                    # One-shot finished -> snap back to idle
-                    self.play(self.default_name, restart=True)
+                    # Seamlessly chain into the follow-up animation (e.g., sleep_start -> sleep)
+                    follow_up = self.next_name
+                    self.play(follow_up, restart=True)
                     break
 
     def get_frame(self) -> pygame.Surface:
@@ -98,10 +101,15 @@ def load_species_animations(
 ) -> Animator:
     """Loads the standard animation set for any pet species folder."""
     manifest = {
-        "idle":  ("idle.png",  4.0, True),
-        "walk":  ("walk.png",  8.0, True),
-        "eat":   ("eat.png",   5.0, False),
-        "happy": ("happy.png", 8.0, False),
+        "idle":        ("idle.png",        4.0, True),
+        "walk":        ("walk.png",        8.0, True),
+        "sleep_start": ("sleep_start.png", 6.0, False),
+        "sleep":       ("sleep.png",       2.5, True),
+        "wake_up":     ("wake_up.png",     6.0, False),
+        "eat":         ("eat.png",         6.0, False),
+        "snack":       ("snack.png",       7.0, False),
+        "play":        ("play.png",        8.0, False),
+        "happy":       ("happy.png",       8.0, False),
     }
 
     loaded: dict[str, Animation] = {}
