@@ -14,7 +14,7 @@ def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
 
 
 class Pet:
-    """Tracks care stats, bond, poop spawns, sleep, age, and offline time decay."""
+    """Tracks care stats, bond, battle stats, training, poop spawns, and offline decay."""
 
     def __init__(self, data: dict | None = None):
         now = time.time()
@@ -43,8 +43,10 @@ class Pet:
         self.poops: list[int] = list(data.get("poops", []))
         self.poop_timer: float = float(data.get("poop_timer", 0.0))
 
-        # Ready for Phase 2 & 3 (training, branching evolutions, battles)
+        # Phase 2 & 3 progression stats
         self.care_mistakes: int = int(data.get("care_mistakes", 0))
+        self.training_sessions: int = int(data.get("training_sessions", 0))
+        self.high_score: int = int(data.get("high_score", 0))
         self.battle_stats: dict = dict(
             data.get("battle_stats", {"atk": 8, "def": 6, "spd": 10, "int": 6})
         )
@@ -83,6 +85,8 @@ class Pet:
             "poops": self.poops,
             "poop_timer": round(self.poop_timer, 2),
             "care_mistakes": self.care_mistakes,
+            "training_sessions": self.training_sessions,
+            "high_score": self.high_score,
             "battle_stats": self.battle_stats,
         }
 
@@ -174,19 +178,85 @@ class Pet:
         self.poop_timer += 5 * 60
         return True, "Star Treat! +14 Happy +2 Bond"
 
-    def play(self) -> tuple[bool, str]:
+    def can_play(self) -> tuple[bool, str]:
         if not self.alive:
             return False, "Press [R] to hatch a new egg."
         if self.sleeping:
             return False, f"Wake {self.name} first [S]."
         if self.energy < 15.0:
-            return False, "Too tired! Put to bed [S]."
+            return False, "Too tired to play! [S] Bed."
+        return True, ""
 
-        self.happy = clamp(self.happy + 22.0)
+    def complete_minigame(self, score: int) -> dict:
+        """Applies Star Catch mini-game rewards and tracks high score."""
+        score = max(0, int(score))
+        happy_gain = min(35, 10 + score * 2)
+        bond_gain = 2 if score < 6 else (3 if score < 12 else 5)
+        spd_bonus = 1 if score >= 12 else 0
+
+        self.happy = clamp(self.happy + happy_gain)
         self.energy = clamp(self.energy - 12.0)
-        self.hunger = clamp(self.hunger - 5.0)
-        self.bond = min(999, self.bond + 2)
-        return True, "Ball time! +22 Happy"
+        self.hunger = clamp(self.hunger - 6.0)
+        self.bond = min(999, self.bond + bond_gain)
+
+        if spd_bonus:
+            self.battle_stats["spd"] = min(99, self.battle_stats.get("spd", 10) + spd_bonus)
+
+        is_new_best = score > self.high_score
+        if is_new_best:
+            self.high_score = score
+
+        return {
+            "score": score,
+            "happy_gain": happy_gain,
+            "bond_gain": bond_gain,
+            "spd_bonus": spd_bonus,
+            "is_new_best": is_new_best,
+            "high_score": self.high_score,
+        }
+
+    def can_train(self) -> tuple[bool, str]:
+        if not self.alive:
+            return False, "Press [R] to hatch a new egg."
+        if self.sleeping:
+            return False, f"Wake {self.name} first [S]."
+        if self.energy < 15.0:
+            return False, "Too tired to train! [S] Bed."
+        if self.hunger < 15.0:
+            return False, "Too hungry to train! [F] Eat."
+        return True, ""
+
+    def apply_training(self, stat_key: str, drill_points: int) -> dict:
+        """Applies Teach timing-drill rewards (drill_points: 0 to 6)."""
+        old_val = int(self.battle_stats.get(stat_key, 5))
+
+        if drill_points >= 5:
+            grade, stat_gain, bond_gain, happy_gain = "PERFECT!", 3, 4, 10
+        elif drill_points >= 3:
+            grade, stat_gain, bond_gain, happy_gain = "GREAT!", 2, 3, 7
+        elif drill_points >= 1:
+            grade, stat_gain, bond_gain, happy_gain = "GOOD", 1, 2, 4
+        else:
+            grade, stat_gain, bond_gain, happy_gain = "NICE TRY", 1, 1, 2
+
+        new_val = min(99, old_val + stat_gain)
+        self.battle_stats[stat_key] = new_val
+        self.training_sessions += 1
+
+        self.energy = clamp(self.energy - 12.0)
+        self.hunger = clamp(self.hunger - 7.0)
+        self.happy = clamp(self.happy + happy_gain)
+        self.bond = min(999, self.bond + bond_gain)
+
+        return {
+            "stat_key": stat_key,
+            "old_val": old_val,
+            "new_val": new_val,
+            "stat_gain": new_val - old_val,
+            "grade": grade,
+            "bond_gain": bond_gain,
+            "happy_gain": happy_gain,
+        }
 
     def hug(self) -> tuple[bool, str]:
         if not self.alive:

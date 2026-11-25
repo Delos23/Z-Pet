@@ -14,6 +14,8 @@ from core.display import DisplayBackend, load_ui_font, prepare_environment
 from core.save_manager import load_config
 from scenes.home import HomeScene
 from scenes.menu import NewPetScene, SettingsScene, TitleScene
+from scenes.minigame import StarCatchScene
+from scenes.teach import TeachScene
 
 
 def save_screenshot(canvas: pygame.Surface) -> str:
@@ -48,7 +50,6 @@ def main() -> None:
     canvas = pygame.Surface((settings.LOGICAL_WIDTH, settings.LOGICAL_HEIGHT))
     clock = pygame.time.Clock()
 
-    # Load recommended CardputerZero system fonts once at startup
     fonts = {
         "sans": load_ui_font(12, mono=False),
         "mono": load_ui_font(12, mono=True),
@@ -112,7 +113,13 @@ def main() -> None:
                         pet=payload["pet"],
                         offline_seconds=payload.get("offline", 0.0),
                         is_new=payload.get("is_new", False),
+                        return_toast=payload.get("return_toast", ""),
+                        return_anim=payload.get("return_anim"),
                     )
+                elif next_name == "teach":
+                    scene = TeachScene(fonts, config, pet=payload["pet"])
+                elif next_name == "minigame":
+                    scene = StarCatchScene(fonts, config, pet=payload["pet"])
                 break
 
             if not running:

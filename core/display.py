@@ -173,10 +173,11 @@ class DisplayBackend:
 
                 for offset in range(0, len(data) - INPUT_EVENT_SIZE + 1, INPUT_EVENT_SIZE):
                     _, _, ev_type, ev_code, ev_val = struct.unpack_from(INPUT_EVENT_FMT, data, offset)
-                    if ev_type == EV_KEY and ev_val == 1:
+                    if ev_type == EV_KEY and ev_val in (0, 1):
                         pg_key = LINUX_KEYMAP.get(ev_code)
                         if pg_key is not None:
-                            pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pg_key))
+                            ev_kind = pygame.KEYDOWN if ev_val == 1 else pygame.KEYUP
+                            pygame.event.post(pygame.event.Event(ev_kind, key=pg_key))
 
     def present(self, canvas: pygame.Surface) -> None:
         """Pushes the 320x170 canvas to either the PC preview window or /dev/fb_lcd."""

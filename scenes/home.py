@@ -212,6 +212,8 @@ class HomeScene:
         pet: Pet,
         offline_seconds: float = 0.0,
         is_new: bool = False,
+        return_toast: str = "",
+        return_anim: str | None = None,
     ):
         self.fonts = fonts
         self.config = config
@@ -257,6 +259,13 @@ class HomeScene:
             self.animator.play("happy", restart=True)
             self.spawn_hearts(4)
             self.show_toast(f"{pet.name} hatched!", duration=2.6)
+        elif return_toast:
+            if return_anim and self.bed_state == "awake":
+                self.animator.facing_left = False
+                self.animator.play(return_anim, restart=True)
+                if return_anim in ("happy", "play"):
+                    self.spawn_hearts(3)
+            self.show_toast(return_toast, duration=2.6)
         elif offline_seconds >= 60:
             self.show_toast(f"Welcome back! Away {format_duration(offline_seconds)}", duration=3.5)
 
@@ -298,7 +307,6 @@ class HomeScene:
         if event.type != pygame.KEYDOWN:
             return None
 
-        # Esc or Q saves and returns to the Start-Up menu
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
             save_pet(self.pet)
             return ("title", {})
@@ -334,7 +342,25 @@ class HomeScene:
                     self.animator.play("happy", restart=True)
                 save_pet(self.pet)
             self.show_toast(msg)
-        elif event.key in (pygame.K_f, pygame.K_t, pygame.K_p, pygame.K_h):
+        elif event.key == pygame.K_d:
+            if self.bed_state == "waking_up":
+                self.show_toast("Hold on, waking up!")
+            else:
+                ok, msg = self.pet.can_train()
+                if ok:
+                    save_pet(self.pet)
+                    return ("teach", {"pet": self.pet})
+                self.show_toast(msg)
+        elif event.key == pygame.K_p:
+            if self.bed_state == "waking_up":
+                self.show_toast("Hold on, waking up!")
+            else:
+                ok, msg = self.pet.can_play()
+                if ok:
+                    save_pet(self.pet)
+                    return ("minigame", {"pet": self.pet})
+                self.show_toast(msg)
+        elif event.key in (pygame.K_f, pygame.K_t, pygame.K_h):
             if self.bed_state == "waking_up":
                 self.show_toast("Hold on, waking up!")
             elif event.key == pygame.K_f:
@@ -350,13 +376,6 @@ class HomeScene:
                     self.animator.facing_left = False
                     self.animator.play("snack", restart=True)
                     self.spawn_hearts(2)
-                    save_pet(self.pet)
-                self.show_toast(msg)
-            elif event.key == pygame.K_p:
-                ok, msg = self.pet.play()
-                if ok:
-                    self.animator.facing_left = False
-                    self.animator.play("play", restart=True)
                     save_pet(self.pet)
                 self.show_toast(msg)
             elif event.key == pygame.K_h:
@@ -479,10 +498,17 @@ class HomeScene:
         if not self.pet.alive:
             ctrl_text = "[R] Hatch New Egg    [Esc] Menu"
         else:
-            sleep_label = "S:Wake" if self.pet.sleeping else "S:Bed"
-            ctrl_text = f"F:Eat T:Trt P:Play C:Cln {sleep_label} H:Hug"
+            sleep_lbl = "S:Wake" if self.pet.sleeping else "S:Bed"
+            ctrl_text = f"F:Eat T:Trt P:Play D:Trn C:Cln {sleep_lbl} H:Hug"
 
         ctrl_surf = font_sans.render(ctrl_text, True, settings.COLOR_MUTED)
+        if ctrl_surf.get_width() > settings.LOGICAL_WIDTH - 4 and self.pet.alive:
+            sleep_lbl = "S:Wk" if self.pet.sleeping else "S:Bd"
+            ctrl_surf = font_sans.render(
+                f"F:Eat T:Trt P:Ply D:Trn C:Cln {sleep_lbl} H:Hug",
+                True,
+                settings.COLOR_MUTED,
+            )
         canvas.blit(ctrl_surf, ((settings.LOGICAL_WIDTH - ctrl_surf.get_width()) // 2, 152))
 
     def render(self, canvas: pygame.Surface) -> None:
