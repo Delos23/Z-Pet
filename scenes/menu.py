@@ -1,4 +1,4 @@
-"""Start-Up Title, New Pet (Custom Name + Base Color), and Settings scenes."""
+"""Start-Up Title, New Pet (Starter + Base Color + Custom Name), and Settings scenes."""
 
 import math
 import random
@@ -6,6 +6,7 @@ import pygame
 
 import settings
 from core.animator import PET_COLOR_ORDER, PET_COLOR_PALETTES, load_species_animations
+from core.species import get_personality, get_species, get_starter_ids
 from core.save_manager import (
     create_new_pet,
     get_save_preview,
@@ -13,6 +14,7 @@ from core.save_manager import (
     load_pet,
     save_config,
 )
+from core.species import get_species, get_starter_ids
 
 SEL_FILL = (76, 52, 122)
 DISABLED_TEXT = (96, 86, 122)
@@ -83,8 +85,9 @@ class TitleScene:
         ]
         self.cursor = 0 if self.save_exists else 1
 
+        preview_species = self.preview["species_id"] if self.preview else "spark_kit"
         preview_color = self.preview["color"] if self.preview else "purple"
-        sprite_dir = settings.SPRITES_DIR / "spark_kit"
+        sprite_dir = settings.SPRITES_DIR / preview_species
         self.animator = load_species_animations(
             sprite_dir,
             frame_w=settings.SPRITE_SIZE,
@@ -142,7 +145,7 @@ class TitleScene:
         canvas.blit(self.animator.get_frame(), (41, 52))
 
         if self.preview:
-            info_txt = f"{self.preview['name']} ({self.preview['age_hours']}h)"
+            info_txt = f"{self.preview['name']} Lv.{self.preview['level']}"
             info_col = settings.COLOR_ACCENT if self.preview["alive"] else WARN_COLOR
         else:
             info_txt = "No pet saved yet"
@@ -185,7 +188,7 @@ class TitleScene:
 
 
 class NewPetScene:
-    """Hatch a new pet: choose a Base Color and enter a custom name (or keep SPARKKIT)."""
+    """Hatch a new starter: pick Species, Base Color, and optional custom Name."""
 
     accepts_text_input = True
 
@@ -195,21 +198,32 @@ class NewPetScene:
         self.stars = _make_stars(20)
         self.elapsed = 0.0
 
-        self.custom_name = ""   # Blank keeps the default SPARKKIT
-        self.color_idx = 0      # Starts on Purple
-        self.focus = "name"     # "name" or "color"
+        self.starter_ids = get_starter_ids()
+        self.species_idx = 0
+        self.color_idx = 0
+        self.custom_name = ""
+        self.rows = ["species", "color", "name"]
+        self.focus_idx = 0
         self.will_overwrite = has_save()
 
-        self._sprite_dir = settings.SPRITES_DIR / "spark_kit"
         self._load_preview_animator(play_happy=True)
+
+    @property
+    def selected_species_id(self) -> str:
+        return self.starter_ids[self.species_idx]
 
     @property
     def selected_color_id(self) -> str:
         return PET_COLOR_ORDER[self.color_idx]
 
+    @property
+    def focus(self) -> str:
+        return self.rows[self.focus_idx]
+
     def _load_preview_animator(self, play_happy: bool = False) -> None:
+        sprite_dir = settings.SPRITES_DIR / self.selected_species_id
         self.animator = load_species_animations(
-            self._sprite_dir,
+            sprite_dir,
             frame_w=settings.SPRITE_SIZE,
             frame_h=settings.SPRITE_SIZE,
             scale=settings.SPRITE_SCALE,
@@ -236,13 +250,29 @@ class NewPetScene:
         if event.key == pygame.K_ESCAPE:
             return ("title", {})
 
-        if event.key in (pygame.K_UP, pygame.K_DOWN, pygame.K_TAB):
-            self.focus = "color" if self.focus == "name" else "name"
+        if event.key == pygame.K_UP:
+            self.focus_idx = (self.focus_idx - 1) % len(self.rows)
+            return None
+        if event.key in (pygame.K_DOWN, pygame.K_TAB):
+            self.focus_idx = (self.focus_idx + 1) % len(self.rows)
             return None
 
         if event.key == pygame.K_RETURN:
-            pet = create_new_pet(self.custom_name, color=self.selected_color_id)
+            pet = create_new_pet(
+                self.custom_name,
+                color=self.selected_color_id,
+                species_id=self.selected_species_id,
+            )
             return ("home", {"pet": pet, "offline": 0.0, "is_new": True})
+
+        if self.focus == "species":
+            if event.key in (pygame.K_LEFT, pygame.K_a):
+                self.species_idx = (self.species_idx - 1) % len(self.starter_ids)
+                self._load_preview_animator(play_happy=True)
+            elif event.key in (pygame.K_RIGHT, pygame.K_d, pygame.K_SPACE):
+                self.species_idx = (self.species_idx + 1) % len(self.starter_ids)
+                self._load_preview_animator(play_happy=True)
+            return None
 
         if self.focus == "color":
             if event.key in (pygame.K_LEFT, pygame.K_a):
@@ -269,95 +299,101 @@ class NewPetScene:
 
     def render(self, canvas: pygame.Surface) -> None:
         _draw_starfield(canvas, self.stars, self.elapsed)
+        sp = get_species(self.selected_species_id)
+        pers = get_personality(self.selected_species_id)
 
-        card = pygame.Rect(10, 6, 300, 136)
+        card = pygame.Rect(8, 6, 304, 138)
         pygame.draw.rect(canvas, settings.COLOR_PANEL, card, border_radius=6)
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, card, 1, border_radius=6)
 
         header = self.fonts["sans"].render("HATCH A NEW PET", True, settings.COLOR_ACCENT)
-        canvas.blit(header, ((settings.LOGICAL_WIDTH - header.get_width()) // 2, 10))
-        pygame.draw.line(canvas, (72, 54, 108), (20, 26), (300, 26), 1)
+        canvas.blit(header, ((settings.LOGICAL_WIDTH - header.get_width()) // 2, 9))
+        pygame.draw.line(canvas, (72, 54, 108), (18, 25), (302, 25), 1)
 
-        # Live recolored Sparkkit preview on the left
-        pygame.draw.ellipse(canvas, (18, 12, 30), pygame.Rect(26, 102, 48, 8))
-        canvas.blit(self.animator.get_frame(), (18, 44))
+        # Left preview stage: live species + color sprite, 7 color dots, personality badge
+        pygame.draw.ellipse(canvas, (18, 12, 30), pygame.Rect(24, 94, 48, 8))
+        canvas.blit(self.animator.get_frame(), (16, 36))
 
-        # 7 mini color dots under the pet preview
         for i, cid in enumerate(PET_COLOR_ORDER):
-            dx = 22 + i * 10
+            dx = 18 + i * 10
             swatch = PET_COLOR_PALETTES[cid]["swatch"]
             if i == self.color_idx:
-                pygame.draw.rect(canvas, settings.COLOR_TEXT, (dx - 1, 114, 8, 8))
-            pygame.draw.rect(canvas, swatch, (dx, 115, 6, 6))
+                pygame.draw.rect(canvas, settings.COLOR_TEXT, (dx - 1, 105, 8, 8))
+            pygame.draw.rect(canvas, swatch, (dx, 106, 6, 6))
 
-        # --- Row 1: Name box (empty = default SPARKKIT) ---
+        trait_s = self.fonts["sans"].render(pers["label"], True, WARN_COLOR)
+        canvas.blit(trait_s, (max(12, (94 - trait_s.get_width()) // 2), 119))
+
+        # --- Row 0: Starter Species ---
+        sp_focused = self.focus == "species"
+        r0 = pygame.Rect(98, 28, 206, 22)
+        pygame.draw.rect(canvas, SEL_FILL if sp_focused else settings.COLOR_BG, r0, border_radius=4)
+        pygame.draw.rect(canvas, GOOD_COLOR if sp_focused else settings.COLOR_ACCENT, r0, 1, border_radius=4)
+        canvas.blit(
+            self.fonts["sans"].render("Pet:", True, settings.COLOR_TEXT if sp_focused else settings.COLOR_MUTED),
+            (104, 31),
+        )
+        sp_val = f"< {sp['name']} >" if sp_focused else sp["name"]
+        sp_surf = self.fonts["mono"].render(sp_val, True, GOOD_COLOR if sp_focused else settings.COLOR_TEXT)
+        canvas.blit(sp_surf, (298 - sp_surf.get_width(), 31))
+
+        # --- Row 1: Base Color ---
+        col_focused = self.focus == "color"
+        pal = PET_COLOR_PALETTES[self.selected_color_id]
+        r1 = pygame.Rect(98, 53, 206, 22)
+        pygame.draw.rect(canvas, SEL_FILL if col_focused else settings.COLOR_BG, r1, border_radius=4)
+        pygame.draw.rect(canvas, GOOD_COLOR if col_focused else settings.COLOR_ACCENT, r1, 1, border_radius=4)
+        pygame.draw.rect(canvas, pal["swatch"], (104, 58, 12, 12), border_radius=2)
+        pygame.draw.rect(canvas, settings.COLOR_TEXT, (104, 58, 12, 12), 1, border_radius=2)
+        canvas.blit(
+            self.fonts["sans"].render("Color:", True, settings.COLOR_TEXT if col_focused else settings.COLOR_MUTED),
+            (120, 56),
+        )
+        col_val = f"< {pal['label']} >" if col_focused else pal["label"]
+        col_surf = self.fonts["mono"].render(col_val, True, GOOD_COLOR if col_focused else settings.COLOR_TEXT)
+        canvas.blit(col_surf, (298 - col_surf.get_width(), 56))
+
+        # --- Row 2: Custom Name ---
         name_focused = self.focus == "name"
-        lbl_name = self.fonts["sans"].render(
-            "Name (blank = SPARKKIT):",
-            True,
-            settings.COLOR_TEXT if name_focused else settings.COLOR_MUTED,
+        r2 = pygame.Rect(98, 78, 206, 22)
+        pygame.draw.rect(canvas, SEL_FILL if name_focused else settings.COLOR_BG, r2, border_radius=4)
+        pygame.draw.rect(canvas, GOOD_COLOR if name_focused else settings.COLOR_ACCENT, r2, 1, border_radius=4)
+        canvas.blit(
+            self.fonts["sans"].render("Name:", True, settings.COLOR_TEXT if name_focused else settings.COLOR_MUTED),
+            (104, 81),
         )
-        canvas.blit(lbl_name, (96, 31))
-
-        input_rect = pygame.Rect(96, 47, 202, 22)
-        pygame.draw.rect(canvas, SEL_FILL if name_focused else settings.COLOR_BG, input_rect, border_radius=4)
-        pygame.draw.rect(
-            canvas,
-            GOOD_COLOR if name_focused else settings.COLOR_ACCENT,
-            input_rect,
-            1,
-            border_radius=4,
-        )
-
         blink = "_" if (name_focused and int(self.elapsed * 2.5) % 2 == 0) else ""
         if self.custom_name:
             name_surf = self.fonts["mono"].render(self.custom_name + blink, True, settings.COLOR_TEXT)
         else:
-            placeholder = f"SPARKKIT{blink}" if name_focused else "SPARKKIT (default)"
-            name_surf = self.fonts["mono"].render(placeholder, True, settings.COLOR_MUTED)
-        canvas.blit(name_surf, (103, 51))
+            name_surf = self.fonts["mono"].render(f"{sp['default_name']}{blink}", True, settings.COLOR_MUTED)
+        canvas.blit(name_surf, (150, 81))
 
-        # --- Row 2: Base Color Picker ---
-        color_focused = self.focus == "color"
-        lbl_col = self.fonts["sans"].render(
-            "Base Color:",
-            True,
-            settings.COLOR_TEXT if color_focused else settings.COLOR_MUTED,
-        )
-        canvas.blit(lbl_col, (96, 74))
+        # --- Row 3: Starter Ability ---
+        ab_name = sp["ability"]["name"] if sp.get("ability") else "None"
+        ab_s = self.fonts["sans"].render(f"Skill: {ab_name}", True, settings.COLOR_ACCENT)
+        canvas.blit(ab_s, (98, 104))
 
-        col_rect = pygame.Rect(96, 90, 202, 22)
-        pygame.draw.rect(canvas, SEL_FILL if color_focused else settings.COLOR_BG, col_rect, border_radius=4)
-        pygame.draw.rect(
-            canvas,
-            GOOD_COLOR if color_focused else settings.COLOR_ACCENT,
-            col_rect,
-            1,
-            border_radius=4,
-        )
-
-        pal = PET_COLOR_PALETTES[self.selected_color_id]
-        pygame.draw.rect(canvas, pal["swatch"], (103, 95, 12, 12), border_radius=2)
-        pygame.draw.rect(canvas, settings.COLOR_TEXT, (103, 95, 12, 12), 1, border_radius=2)
-
-        val_txt = f"< {pal['label']} >" if color_focused else pal["label"]
-        val_surf = self.fonts["mono"].render(
-            val_txt, True, GOOD_COLOR if color_focused else settings.COLOR_TEXT
-        )
-        canvas.blit(val_surf, (122, 94))
-
-        # Overwrite notice / Hatch CTA
+        # --- Row 4: Starting Stats (or overwrite warning) ---
+        st = sp["base_stats"]
         if self.will_overwrite:
-            warn = self.fonts["sans"].render("Replaces saved pet! [Enter] Hatch", True, WARN_COLOR)
-            canvas.blit(warn, (96, 120))
+            notice = self.fonts["mono"].render(
+                f"A:{st['atk']} D:{st['def']} S:{st['spd']} I:{st['int']} (New!)",
+                True,
+                WARN_COLOR,
+            )
         else:
-            cta = self.fonts["sans"].render("[Enter] Hatch New Pet!", True, GOOD_COLOR)
-            canvas.blit(cta, (96, 120))
+            notice = self.fonts["mono"].render(
+                f"A:{st['atk']} D:{st['def']} S:{st['spd']} I:{st['int']} [Enter]",
+                True,
+                GOOD_COLOR,
+            )
+        canvas.blit(notice, (98, 121))
 
         foot = (
-            "Type Name  Up/Dn:Color  Enter:Hatch"
+            "Type Name  Bksp:Del  Up/Dn:Row  Enter:Hatch"
             if name_focused
-            else "Lt/Rt:Color  Up/Dn:Name  Enter:Hatch"
+            else "Lt/Rt:Pick  Up/Dn:Row  Enter:Hatch"
         )
         _draw_footer(canvas, self.fonts["sans"], foot)
 

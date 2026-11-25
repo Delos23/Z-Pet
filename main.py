@@ -12,9 +12,11 @@ import pygame
 import settings
 from core.display import DisplayBackend, load_ui_font, prepare_environment
 from core.save_manager import load_config
+from scenes.evolve import EvolveScene
 from scenes.home import HomeScene
 from scenes.menu import NewPetScene, SettingsScene, TitleScene
 from scenes.minigame import StarCatchScene
+from scenes.status import StatusScene
 from scenes.teach import TeachScene
 
 
@@ -58,8 +60,44 @@ def main() -> None:
 
     config = load_config()
     scene = TitleScene(fonts, config)
-
     running = True
+
+    def switch_scene(next_name: str, payload: dict) -> None:
+        nonlocal scene, running
+        if hasattr(scene, "on_exit"):
+            scene.on_exit()
+
+        if next_name == "quit":
+            running = False
+        elif next_name == "title":
+            scene = TitleScene(fonts, config)
+        elif next_name == "new_pet":
+            scene = NewPetScene(fonts, config)
+        elif next_name == "settings":
+            scene = SettingsScene(fonts, config)
+        elif next_name == "home":
+            scene = HomeScene(
+                fonts,
+                config,
+                pet=payload["pet"],
+                offline_seconds=payload.get("offline", 0.0),
+                is_new=payload.get("is_new", False),
+                return_toast=payload.get("return_toast", ""),
+                return_anim=payload.get("return_anim"),
+            )
+        elif next_name == "teach":
+            scene = TeachScene(fonts, config, pet=payload["pet"])
+        elif next_name == "minigame":
+            scene = StarCatchScene(fonts, config, pet=payload["pet"])
+        elif next_name == "status":
+            scene = StatusScene(fonts, config, pet=payload["pet"])
+        elif next_name == "evolve":
+            scene = EvolveScene(
+                fonts,
+                config,
+                pet=payload["pet"],
+                target_species_id=payload["target_species"],
+            )
 
     def handle_exit_signal(_signum, _frame) -> None:
         nonlocal running
@@ -90,42 +128,19 @@ def main() -> None:
                         continue
 
                 transition = scene.handle_event(event)
-                if transition is None:
-                    continue
-
-                next_name, payload = transition
-                if hasattr(scene, "on_exit"):
-                    scene.on_exit()
-
-                if next_name == "quit":
-                    running = False
+                if transition is not None:
+                    switch_scene(*transition)
                     break
-                elif next_name == "title":
-                    scene = TitleScene(fonts, config)
-                elif next_name == "new_pet":
-                    scene = NewPetScene(fonts, config)
-                elif next_name == "settings":
-                    scene = SettingsScene(fonts, config)
-                elif next_name == "home":
-                    scene = HomeScene(
-                        fonts,
-                        config,
-                        pet=payload["pet"],
-                        offline_seconds=payload.get("offline", 0.0),
-                        is_new=payload.get("is_new", False),
-                        return_toast=payload.get("return_toast", ""),
-                        return_anim=payload.get("return_anim"),
-                    )
-                elif next_name == "teach":
-                    scene = TeachScene(fonts, config, pet=payload["pet"])
-                elif next_name == "minigame":
-                    scene = StarCatchScene(fonts, config, pet=payload["pet"])
-                break
 
             if not running:
                 break
 
-            scene.update(dt)
+            auto_transition = scene.update(dt)
+            if auto_transition is not None:
+                switch_scene(*auto_transition)
+                if not running:
+                    break
+
             scene.render(canvas)
 
             if capture_requested:

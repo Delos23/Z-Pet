@@ -310,11 +310,13 @@ class StarCatchScene:
             rew_s = self.fonts["sans"].render(rew_txt, True, GOOD_COL)
             canvas.blit(rew_s, ((settings.LOGICAL_WIDTH - rew_s.get_width()) // 2, 92))
 
-            eng_s = self.fonts["sans"].render(
-                f"Energy left: {int(self.pet.energy)}%",
-                True,
-                settings.COLOR_MUTED,
-            )
+            if res.get("leveled_up"):
+                xp_txt = f"LEVEL UP! Now Lv.{res['new_level']} (+{res['xp_gain']} XP)"
+                xp_col = STAR_GOLD
+            else:
+                xp_txt = f"+{res['xp_gain']} XP   Energy: {int(self.pet.energy)}%"
+                xp_col = settings.COLOR_MUTED
+            eng_s = self.fonts["sans"].render(xp_txt, True, xp_col)
             canvas.blit(eng_s, ((settings.LOGICAL_WIDTH - eng_s.get_width()) // 2, 112))
 
         # Bottom controls bar

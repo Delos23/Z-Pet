@@ -346,7 +346,7 @@ class HomeScene:
 
         self.rendered_size = settings.SPRITE_SIZE * settings.SPRITE_SCALE
         self.pet_y = 128 - self.rendered_size
-        self.walk_speed = 38.0
+        self.walk_speed = 38.0 * self.pet.personality["walk_speed_mult"]
         self.bed_walk_speed = 62.0
         self.wander_timer = 2.0
 
@@ -456,6 +456,10 @@ class HomeScene:
                     self.animator.play("happy", restart=True)
                 save_pet(self.pet)
             self.show_toast(msg)
+        elif event.key == pygame.K_i:
+         save_pet(self.pet)
+         return ("status", {"pet": self.pet})
+        
         elif event.key == pygame.K_d:
             if self.bed_state == "waking_up":
                 self.show_toast("Hold on, waking up!")
@@ -510,6 +514,14 @@ class HomeScene:
         if self.autosave_timer >= 30.0:
             save_pet(self.pet)
             self.autosave_timer = 0.0
+
+# Trigger evolution ceremony automatically once eligible and awake
+        if self.pet.alive and self.bed_state == "awake" and not self.animator.is_playing_oneshot:
+         evo_target = self.pet.check_evolution_ready()
+         if evo_target:
+             save_pet(self.pet)
+             return ("evolve", {"pet": self.pet, "target_species": evo_target})
+         return None
 
         if self.toast_timer > 0:
             self.toast_timer -= dt
@@ -580,7 +592,11 @@ class HomeScene:
 
         header = font_sans.render(f"{self.pet.name} {self.pet.age_hours}h BND:{self.pet.bond}", True, settings.COLOR_TEXT)
         canvas.blit(header, (6, 2))
-
+        header = font_sans.render(
+         f"{self.pet.name} Lv{self.pet.level} B:{self.pet.bond}",
+         True,
+         settings.COLOR_TEXT,
+     )
         if not self.pet.alive:
             status_txt, status_col = "FAINT", BAR_LOW
         elif self.pet.sleeping:

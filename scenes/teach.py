@@ -304,11 +304,13 @@ class TeachScene:
             )
             canvas.blit(stat_s, (104, 72))
 
-            bonus_s = self.fonts["sans"].render(
-                f"+{res['bond_gain']} Bond   +{res['happy_gain']} Happy",
-                True,
-                settings.COLOR_ACCENT,
-            )
+            if res.get("leveled_up"):
+                bonus_txt = f"LEVEL UP! Lv.{res['new_level']} (+{res['xp_gain']} XP)"
+                bonus_col = PERF_COL
+            else:
+                bonus_txt = f"+{res['xp_gain']} XP   +{res['bond_gain']} Bond"
+                bonus_col = settings.COLOR_ACCENT
+            bonus_s = self.fonts["sans"].render(bonus_txt, True, bonus_col)
             canvas.blit(bonus_s, (104, 94))
 
             rem_txt = f"Daily drills left: {rem}/{MAX_DAILY_TRAINS}"

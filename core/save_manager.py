@@ -5,14 +5,15 @@ import time
 
 import settings
 from core.pet import Pet
+from core.species import get_species
 
 SAVE_FILE: Path = settings.SAVE_DIR / "save.json"
 CONFIG_FILE: Path = settings.SAVE_DIR / "config.json"
 
 DEFAULT_CONFIG: dict = {
     "clock_24h": False,
-    "sky_mode": "auto",    # "auto", "dawn", "day", "sunset", "night"
-    "time_scale": 1.0,     # 1.0, 10.0, or 60.0
+    "sky_mode": "auto",
+    "time_scale": 1.0,
 }
 
 
@@ -61,9 +62,12 @@ def get_save_preview() -> dict | None:
             data = json.load(f)
         born_at = float(data.get("born_at", time.time()))
         age_hours = max(0, int((time.time() - born_at) // 3600))
+        species_id = str(data.get("species_id", "spark_kit"))
         return {
-            "name": str(data.get("name", "SPARKKIT")),
+            "name": str(data.get("name", get_species(species_id)["default_name"])),
+            "species_id": species_id,
             "color": str(data.get("color", "purple")),
+            "level": int(data.get("level", 1)),
             "age_hours": age_hours,
             "bond": int(data.get("bond", 0)),
             "alive": bool(data.get("alive", True)),
@@ -76,10 +80,21 @@ def save_pet(pet: Pet) -> None:
     _atomic_write_json(SAVE_FILE, pet.to_dict())
 
 
-def create_new_pet(name: str = "", color: str = "purple") -> Pet:
-    """Creates and saves a brand-new pet; blank name keeps the default SPARKKIT."""
-    clean_name = name.strip().upper()[:10] or "SPARKKIT"
-    pet = Pet({"name": clean_name, "color": color})
+def create_new_pet(
+    name: str = "",
+    color: str = "purple",
+    species_id: str = "spark_kit",
+) -> Pet:
+    """Creates and saves a brand-new starter pet; blank name keeps species default."""
+    sp = get_species(species_id)
+    clean_name = name.strip().upper()[:10] or sp["default_name"]
+    pet = Pet({
+        "name": clean_name,
+        "species_id": species_id,
+        "color": color,
+        "stage": sp.get("stage", "baby"),
+        "battle_stats": dict(sp["base_stats"]),
+    })
     save_pet(pet)
     return pet
 
