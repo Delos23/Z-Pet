@@ -16,15 +16,21 @@ chmod +x "$APP_DIR/deploy/run_zpet.sh"
 echo "Installing Z-Pet icon to $ICON_DST..."
 sudo install -Dm644 "$ICON_SRC" "$ICON_DST"
 
+echo "Installing launcher symlink at /usr/bin/z-pet..."
+sudo ln -sf "$APP_DIR/deploy/run_zpet.sh" /usr/bin/z-pet
+
 echo "Registering Z-Pet with APPLaunch at $DESKTOP_DST..."
-sudo tee "$DESKTOP_DST" >/dev/null <<EOF
+sudo tee "$DESKTOP_DST" >/dev/null <<'EOF'
 [Desktop Entry]
+Type=Application
 Name=Z-Pet
-Exec=$APP_DIR/deploy/run_zpet.sh
-Terminal=false
+Comment=Virtual pixel-art pet for Cardputer Zero
+Exec=/usr/bin/z-pet
 Icon=share/images/z-pet.png
+Terminal=false
+Categories=Game;
 EOF
 
 echo "Restarting APPLaunch..."
 systemctl --user restart APPLaunch.service
-echo "Done! Z-Pet should now appear on your Cardputer Zero launcher."
+echo "Done! Z-Pet is ready on your Cardputer Zero launcher."

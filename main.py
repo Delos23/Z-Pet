@@ -1,6 +1,5 @@
 from datetime import datetime
 import math
-import os
 import random
 import signal
 import sys
@@ -8,6 +7,7 @@ import pygame
 
 import settings
 from core.animator import load_species_animations
+from core.display import DisplayBackend, prepare_environment
 from core.pet import Pet
 from core.save_manager import load_pet, save_pet
 
@@ -25,18 +25,6 @@ HEART_COLOR = (255, 105, 165)
 # Permanent pet bed placement in the right corner of the room
 BED_X = 240
 WALK_TO_BED_X = BED_X - 6  # Matches Sparkkit's x_off=-3 in sleep_start & wake_up
-
-
-def create_display() -> pygame.Surface:
-    fullscreen = settings.IS_HANDHELD or ("--fullscreen" in sys.argv)
-    if fullscreen:
-        pygame.mouse.set_visible(False)
-        return pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-
-    pygame.display.set_caption("Z-Pet (320x170 Preview)")
-    return pygame.display.set_mode(
-        (settings.LOGICAL_WIDTH * settings.PC_SCALE, settings.LOGICAL_HEIGHT * settings.PC_SCALE)
-    )
 
 
 def get_clock_info() -> tuple[float, str]:
@@ -106,7 +94,6 @@ def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float)
     canvas.set_clip(win_rect)
 
     if 5.0 <= hour_float < 7.5:
-        # Dawn: lavender sky + warm peach horizon + rising sun
         t = (hour_float - 5.0) / 2.5
         pygame.draw.rect(canvas, (76, 70, 138), (wx, wy, ww, 15))
         pygame.draw.rect(canvas, (238, 152, 128), (wx, wy + 15, ww, 13))
@@ -115,7 +102,6 @@ def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float)
         pygame.draw.circle(canvas, (255, 214, 120), (sun_x, sun_y), 4)
 
     elif 7.5 <= hour_float < 17.5:
-        # Daytime: bright sky + sun arcing smoothly across the window + drifting clouds
         t = (hour_float - 7.5) / 10.0
         pygame.draw.rect(canvas, (74, 144, 216), (wx, wy, ww, 17))
         pygame.draw.rect(canvas, (124, 186, 236), (wx, wy + 17, ww, 11))
@@ -129,7 +115,6 @@ def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float)
         pygame.draw.rect(canvas, (242, 246, 255), (cloud_x + 3, wy + 13, 6, 3))
 
     elif 17.5 <= hour_float < 20.0:
-        # Sunset / Dusk: deep twilight top + orange-coral horizon + sinking sun
         t = (hour_float - 17.5) / 2.5
         pygame.draw.rect(canvas, (52, 38, 102), (wx, wy, ww, 14))
         pygame.draw.rect(canvas, (226, 108, 92), (wx, wy + 14, ww, 14))
@@ -140,7 +125,6 @@ def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float)
             canvas.fill((240, 240, 255), (wx + 9, wy + 6, 1, 1))
 
     else:
-        # Night: midnight sky + crescent moon arc + twinkling stars
         night_h = (hour_float - 20.0) % 24.0
         t = min(1.0, night_h / 9.0)
         sky = (14, 18, 46)
@@ -161,7 +145,6 @@ def draw_clock_window(canvas: pygame.Surface, hour_float: float, elapsed: float)
 
     canvas.set_clip(None)
 
-    # Window frame & mullions
     frame_col = settings.COLOR_ACCENT
     pygame.draw.rect(canvas, frame_col, win_rect, 2)
     pygame.draw.line(canvas, frame_col, (wx + ww // 2, wy), (wx + ww // 2, wy + wh - 1), 1)
@@ -235,7 +218,6 @@ def draw_hud(
     clock_str: str,
     toast_msg: str,
 ) -> None:
-    # Top HUD panel
     pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 34))
     pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 34), (settings.LOGICAL_WIDTH, 34), 1)
 
@@ -259,7 +241,6 @@ def draw_hud(
     draw_stat_bar(canvas, font, 162, 18, "ENG", pet.energy)
     draw_stat_bar(canvas, font, 240, 18, "CLN", pet.clean)
 
-    # Floating toast banner
     if toast_msg:
         msg_surf = font.render(toast_msg, True, settings.COLOR_TEXT)
         box_w = msg_surf.get_width() + 14
@@ -268,7 +249,6 @@ def draw_hud(
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, (box_x, 38, box_w, 16), 1, border_radius=3)
         canvas.blit(msg_surf, (box_x + 7, 40))
 
-    # Bottom controls bar
     pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 150, settings.LOGICAL_WIDTH, 20))
     pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 150), (settings.LOGICAL_WIDTH, 150), 1)
     if not pet.alive:
@@ -282,12 +262,10 @@ def draw_hud(
 
 
 def main() -> None:
-    # Auto-select kmsdrm when running headless on the Cardputer Zero
-    if settings.IS_HANDHELD and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-        os.environ.setdefault("SDL_VIDEODRIVER", "kmsdrm")
-
+    use_fb = prepare_environment()
     pygame.init()
-    window = create_display()
+
+    display = DisplayBackend(use_fb=use_fb)
     canvas = pygame.Surface((settings.LOGICAL_WIDTH, settings.LOGICAL_HEIGHT))
     dim_overlay = pygame.Surface((settings.LOGICAL_WIDTH, 116), pygame.SRCALPHA)
     clock = pygame.time.Clock()
@@ -311,7 +289,6 @@ def main() -> None:
     bed_walk_speed = 62.0
     wander_timer = 2.0
 
-    # Smooth bedtime state machine: awake -> walking_to_bed -> tucking_in -> sleeping -> waking_up
     if pet.alive and pet.sleeping:
         bed_state = "sleeping"
         pet_x = float(WALK_TO_BED_X)
@@ -358,213 +335,200 @@ def main() -> None:
     signal.signal(signal.SIGTERM, handle_exit_signal)
     signal.signal(signal.SIGINT, handle_exit_signal)
 
-    while running:
-        dt = min(clock.tick(settings.FPS) / 1000.0, 0.1)
-        elapsed += dt
+    try:
+        while running:
+            dt = min(clock.tick(settings.FPS) / 1000.0, 0.1)
+            elapsed += dt
 
-        # --- 1. Handle Input ---
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            # Pump Cardputer Zero /dev/input/event* keys into Pygame's event queue
+            display.poll_hardware_keys()
+
+            # --- 1. Handle Input ---
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
                     running = False
-                elif event.key == pygame.K_s:
-                    ok, msg = pet.toggle_sleep()
-                    if ok:
-                        if pet.sleeping:
-                            # Start smooth bedtime sequence
-                            bed_state = "walking_to_bed"
-                        else:
-                            # Smoothly wake up (or cancel walk if not in bed yet)
-                            if bed_state in ("tucking_in", "sleeping"):
-                                bed_state = "waking_up"
-                                animator.facing_left = False
-                                animator.play("wake_up", restart=True, next_anim="idle")
+                elif event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                        running = False
+                    elif event.key == pygame.K_s:
+                        ok, msg = pet.toggle_sleep()
+                        if ok:
+                            if pet.sleeping:
+                                bed_state = "walking_to_bed"
                             else:
-                                bed_state = "awake"
-                                animator.play("idle", restart=True)
+                                if bed_state in ("tucking_in", "sleeping"):
+                                    bed_state = "waking_up"
+                                    animator.facing_left = False
+                                    animator.play("wake_up", restart=True, next_anim="idle")
+                                else:
+                                    bed_state = "awake"
+                                    animator.play("idle", restart=True)
+                            save_pet(pet)
+                        show_toast(msg)
+                    elif event.key == pygame.K_r and not pet.alive:
+                        pet = Pet()
+                        bed_state = "awake"
+                        pet_x = 112.0
+                        target_x = 112.0
+                        lamp_dim = 0.0
                         save_pet(pet)
-                    show_toast(msg)
-                elif event.key == pygame.K_r and not pet.alive:
-                    pet = Pet()
-                    bed_state = "awake"
-                    pet_x = 112.0
-                    target_x = 112.0
-                    lamp_dim = 0.0
-                    save_pet(pet)
-                    animator.play("happy", restart=True)
-                    show_toast("A new Sparkkit hatched!")
-                elif event.key == pygame.K_c:
-                    ok, msg = pet.clean_room()
-                    if ok:
-                        if bed_state == "awake":
-                            animator.play("happy", restart=True)
-                        save_pet(pet)
-                    show_toast(msg)
-                elif event.key in (pygame.K_f, pygame.K_t, pygame.K_p, pygame.K_h):
-                    if bed_state == "waking_up":
-                        show_toast("Hold on, waking up!")
-                    elif event.key == pygame.K_f:
-                        ok, msg = pet.feed()
+                        animator.play("happy", restart=True)
+                        show_toast("A new Sparkkit hatched!")
+                    elif event.key == pygame.K_c:
+                        ok, msg = pet.clean_room()
                         if ok:
-                            animator.facing_left = False
-                            animator.play("eat", restart=True)
+                            if bed_state == "awake":
+                                animator.play("happy", restart=True)
                             save_pet(pet)
                         show_toast(msg)
-                    elif event.key == pygame.K_t:
-                        ok, msg = pet.give_treat()
-                        if ok:
-                            animator.facing_left = False
-                            animator.play("snack", restart=True)
-                            spawn_hearts(2)
-                            save_pet(pet)
-                        show_toast(msg)
-                    elif event.key == pygame.K_p:
-                        ok, msg = pet.play()
-                        if ok:
-                            animator.facing_left = False
-                            animator.play("play", restart=True)
-                            save_pet(pet)
-                        show_toast(msg)
-                    elif event.key == pygame.K_h:
-                        ok, msg = pet.hug()
-                        if ok:
-                            animator.play("happy", restart=True)
-                            spawn_hearts(4)
-                            save_pet(pet)
-                        show_toast(msg)
+                    elif event.key in (pygame.K_f, pygame.K_t, pygame.K_p, pygame.K_h):
+                        if bed_state == "waking_up":
+                            show_toast("Hold on, waking up!")
+                        elif event.key == pygame.K_f:
+                            ok, msg = pet.feed()
+                            if ok:
+                                animator.facing_left = False
+                                animator.play("eat", restart=True)
+                                save_pet(pet)
+                            show_toast(msg)
+                        elif event.key == pygame.K_t:
+                            ok, msg = pet.give_treat()
+                            if ok:
+                                animator.facing_left = False
+                                animator.play("snack", restart=True)
+                                spawn_hearts(2)
+                                save_pet(pet)
+                            show_toast(msg)
+                        elif event.key == pygame.K_p:
+                            ok, msg = pet.play()
+                            if ok:
+                                animator.facing_left = False
+                                animator.play("play", restart=True)
+                                save_pet(pet)
+                            show_toast(msg)
+                        elif event.key == pygame.K_h:
+                            ok, msg = pet.hug()
+                            if ok:
+                                animator.play("happy", restart=True)
+                                spawn_hearts(4)
+                                save_pet(pet)
+                            show_toast(msg)
 
-        # --- 2. Update Pet Simulation & Particles ---
-        pet.update(dt)
-        autosave_timer += dt
-        if autosave_timer >= 30.0:
-            save_pet(pet)
-            autosave_timer = 0.0
+            # --- 2. Update Pet Simulation & Particles ---
+            pet.update(dt)
+            autosave_timer += dt
+            if autosave_timer >= 30.0:
+                save_pet(pet)
+                autosave_timer = 0.0
 
-        if toast_timer > 0:
-            toast_timer -= dt
-            if toast_timer <= 0:
-                toast_msg = ""
+            if toast_timer > 0:
+                toast_timer -= dt
+                if toast_timer <= 0:
+                    toast_msg = ""
 
-        for h in hearts:
-            h["y"] -= h["vy"] * dt
-            h["life"] -= dt
-        hearts = [h for h in hearts if h["life"] > 0]
+            for h in hearts:
+                h["y"] -= h["vy"] * dt
+                h["life"] -= dt
+            hearts = [h for h in hearts if h["life"] > 0]
 
-        # --- 3. Smooth Bedtime State Machine & Lamp Fade ---
-        if not pet.alive:
-            bed_state = "awake"
-            animator.play("idle")
-        elif bed_state == "walking_to_bed":
-            dx = WALK_TO_BED_X - pet_x
-            if abs(dx) > 2.0:
-                direction = 1.0 if dx > 0 else -1.0
-                pet_x += direction * bed_walk_speed * dt
-                animator.facing_left = direction < 0
-                animator.play("walk")
-            else:
-                pet_x = float(WALK_TO_BED_X)
-                animator.facing_left = False
-                bed_state = "tucking_in"
-                animator.play("sleep_start", restart=True, next_anim="sleep")
-        elif bed_state == "tucking_in":
-            if animator.current_name == "sleep":
-                bed_state = "sleeping"
-        elif bed_state == "sleeping":
-            animator.facing_left = False
-            animator.play("sleep")
-        elif bed_state == "waking_up":
-            if animator.current_name == "idle":
+            # --- 3. Smooth Bedtime State Machine & Lamp Fade ---
+            if not pet.alive:
                 bed_state = "awake"
-                pet_x = float(WALK_TO_BED_X)
-                target_x = 120.0  # Trot happily back onto the center rug
-                wander_timer = 2.5
-        elif not animator.is_playing_oneshot:
-            # Normal awake wandering (stays clear of the bed in the right corner)
-            dx = target_x - pet_x
-            if abs(dx) > 2.0:
-                direction = 1.0 if dx > 0 else -1.0
-                pet_x += direction * walk_speed * dt
-                animator.facing_left = direction < 0
-                animator.play("walk")
-            else:
                 animator.play("idle")
-                wander_timer -= dt
-                if wander_timer <= 0:
-                    target_x = float(random.randint(20, BED_X - rendered_size - 8))
-                    wander_timer = random.uniform(2.0, 4.5)
+            elif bed_state == "walking_to_bed":
+                dx = WALK_TO_BED_X - pet_x
+                if abs(dx) > 2.0:
+                    direction = 1.0 if dx > 0 else -1.0
+                    pet_x += direction * bed_walk_speed * dt
+                    animator.facing_left = direction < 0
+                    animator.play("walk")
+                else:
+                    pet_x = float(WALK_TO_BED_X)
+                    animator.facing_left = False
+                    bed_state = "tucking_in"
+                    animator.play("sleep_start", restart=True, next_anim="sleep")
+            elif bed_state == "tucking_in":
+                if animator.current_name == "sleep":
+                    bed_state = "sleeping"
+            elif bed_state == "sleeping":
+                animator.facing_left = False
+                animator.play("sleep")
+            elif bed_state == "waking_up":
+                if animator.current_name == "idle":
+                    bed_state = "awake"
+                    pet_x = float(WALK_TO_BED_X)
+                    target_x = 120.0
+                    wander_timer = 2.5
+            elif not animator.is_playing_oneshot:
+                dx = target_x - pet_x
+                if abs(dx) > 2.0:
+                    direction = 1.0 if dx > 0 else -1.0
+                    pet_x += direction * walk_speed * dt
+                    animator.facing_left = direction < 0
+                    animator.play("walk")
+                else:
+                    animator.play("idle")
+                    wander_timer -= dt
+                    if wander_timer <= 0:
+                        target_x = float(random.randint(20, BED_X - rendered_size - 8))
+                        wander_timer = random.uniform(2.0, 4.5)
 
-        if pet.alive:
-            animator.update(dt)
+            if pet.alive:
+                animator.update(dt)
 
-        # Smooth bedroom lamp dim/brighten (~0.6s fade instead of an abrupt cut)
-        target_dim = 1.0 if bed_state in ("tucking_in", "sleeping") else 0.0
-        if lamp_dim < target_dim:
-            lamp_dim = min(target_dim, lamp_dim + dt * 1.6)
-        elif lamp_dim > target_dim:
-            lamp_dim = max(target_dim, lamp_dim - dt * 1.6)
+            target_dim = 1.0 if bed_state in ("tucking_in", "sleeping") else 0.0
+            if lamp_dim < target_dim:
+                lamp_dim = min(target_dim, lamp_dim + dt * 1.6)
+            elif lamp_dim > target_dim:
+                lamp_dim = max(target_dim, lamp_dim - dt * 1.6)
 
-        # --- 4. Render onto 320x170 Canvas ---
-        hour_float, clock_str = get_clock_info()
+            # --- 4. Render onto 320x170 Canvas ---
+            hour_float, clock_str = get_clock_info()
 
-        # Room walls, floor & center rug
-        canvas.fill(settings.COLOR_BG)
-        pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 24))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 126), (settings.LOGICAL_WIDTH, 126), 1)
-        pygame.draw.ellipse(canvas, (68, 48, 102), (76, 130, 124, 14))
+            canvas.fill(settings.COLOR_BG)
+            pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 24))
+            pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 126), (settings.LOGICAL_WIDTH, 126), 1)
+            pygame.draw.ellipse(canvas, (68, 48, 102), (76, 130, 124, 14))
 
-        # Draw floor poops
-        for px_pos in pet.poops:
-            canvas.blit(poop_sprite, (px_pos, 114))
+            for px_pos in pet.poops:
+                canvas.blit(poop_sprite, (px_pos, 114))
 
-        # Draw pet + permanent bed (bed is baked into sleep_start / sleep / wake_up)
-        in_bed_anim = bed_state in ("tucking_in", "sleeping", "waking_up")
-        if in_bed_anim:
-            pygame.draw.ellipse(canvas, (14, 10, 24), pygame.Rect(BED_X + 4, 123, 56, 8))
-            canvas.blit(animator.get_frame(), (BED_X, int(pet_y)))
-        else:
-            pygame.draw.ellipse(canvas, (14, 10, 24), pygame.Rect(BED_X + 4, 123, 56, 8))
-            canvas.blit(bed_sprite, (BED_X, int(pet_y)))
-            pygame.draw.ellipse(canvas, (18, 12, 28), pygame.Rect(int(pet_x) + 14, 124, 36, 7))
-            canvas.blit(animator.get_frame(), (int(pet_x), int(pet_y)))
+            in_bed_anim = bed_state in ("tucking_in", "sleeping", "waking_up")
+            if in_bed_anim:
+                pygame.draw.ellipse(canvas, (14, 10, 24), pygame.Rect(BED_X + 4, 123, 56, 8))
+                canvas.blit(animator.get_frame(), (BED_X, int(pet_y)))
+            else:
+                pygame.draw.ellipse(canvas, (14, 10, 24), pygame.Rect(BED_X + 4, 123, 56, 8))
+                canvas.blit(bed_sprite, (BED_X, int(pet_y)))
+                pygame.draw.ellipse(canvas, (18, 12, 28), pygame.Rect(int(pet_x) + 14, 124, 36, 7))
+                canvas.blit(animator.get_frame(), (int(pet_x), int(pet_y)))
 
-        # Smooth indoor lamp dimming overlay (dims bedroom while keeping outdoor window crisp)
-        if lamp_dim > 0.01:
-            dim_overlay.fill((8, 4, 20, int(lamp_dim * 120)))
-            canvas.blit(dim_overlay, (0, 34))
+            if lamp_dim > 0.01:
+                dim_overlay.fill((8, 4, 20, int(lamp_dim * 120)))
+                canvas.blit(dim_overlay, (0, 34))
 
-        # Real-time clock window stays bright on top of indoor dimness
-        draw_clock_window(canvas, hour_float, elapsed)
+            draw_clock_window(canvas, hour_float, elapsed)
 
-        # Floating Zzz once settled asleep
-        if pet.alive and bed_state == "sleeping":
-            bob = int(math.sin(elapsed * 2.5) * 3)
-            zzz = font.render("Zzz", True, settings.COLOR_ACCENT)
-            canvas.blit(zzz, (BED_X + 44, int(pet_y) + 12 + bob))
+            if pet.alive and bed_state == "sleeping":
+                bob = int(math.sin(elapsed * 2.5) * 3)
+                zzz = font.render("Zzz", True, settings.COLOR_ACCENT)
+                canvas.blit(zzz, (BED_X + 44, int(pet_y) + 12 + bob))
 
-        # Thought bubble when awake and a stat is low
-        need = pet.get_need_bubble()
-        if need and bed_state == "awake" and not animator.is_playing_oneshot:
-            bubble_bob = int(math.sin(elapsed * 4.0) * 2)
-            draw_thought_bubble(canvas, int(pet_x) + 44, int(pet_y) - 6 + bubble_bob, need)
+            need = pet.get_need_bubble()
+            if need and bed_state == "awake" and not animator.is_playing_oneshot:
+                bubble_bob = int(math.sin(elapsed * 4.0) * 2)
+                draw_thought_bubble(canvas, int(pet_x) + 44, int(pet_y) - 6 + bubble_bob, need)
 
-        # Floating pixel hearts
-        for h in hearts:
-            draw_pixel_heart(canvas, int(h["x"]), int(h["y"]))
+            for h in hearts:
+                draw_pixel_heart(canvas, int(h["x"]), int(h["y"]))
 
-        # Top & bottom HUD bars on top
-        draw_hud(canvas, font, pet, clock_str, toast_msg)
+            draw_hud(canvas, font, pet, clock_str, toast_msg)
+            display.present(canvas)
+    finally:
+        save_pet(pet)
+        display.close()
+        pygame.quit()
 
-        if window.get_size() == canvas.get_size():
-            window.blit(canvas, (0, 0))
-        else:
-            pygame.transform.scale(canvas, window.get_size(), window)
-
-        pygame.display.flip()
-
-    save_pet(pet)
-    pygame.quit()
     sys.exit()
 
 
