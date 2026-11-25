@@ -1,6 +1,8 @@
 from datetime import datetime
 import math
+import os
 import random
+import signal
 import sys
 import pygame
 
@@ -29,10 +31,7 @@ def create_display() -> pygame.Surface:
     fullscreen = settings.IS_HANDHELD or ("--fullscreen" in sys.argv)
     if fullscreen:
         pygame.mouse.set_visible(False)
-        return pygame.display.set_mode(
-            (settings.LOGICAL_WIDTH, settings.LOGICAL_HEIGHT),
-            pygame.FULLSCREEN,
-        )
+        return pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 
     pygame.display.set_caption("Z-Pet (320x170 Preview)")
     return pygame.display.set_mode(
@@ -283,6 +282,10 @@ def draw_hud(
 
 
 def main() -> None:
+    # Auto-select kmsdrm when running headless on the Cardputer Zero
+    if settings.IS_HANDHELD and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        os.environ.setdefault("SDL_VIDEODRIVER", "kmsdrm")
+
     pygame.init()
     window = create_display()
     canvas = pygame.Surface((settings.LOGICAL_WIDTH, settings.LOGICAL_HEIGHT))
@@ -347,6 +350,14 @@ def main() -> None:
             })
 
     running = True
+
+    def handle_exit_signal(_signum, _frame) -> None:
+        nonlocal running
+        running = False
+
+    signal.signal(signal.SIGTERM, handle_exit_signal)
+    signal.signal(signal.SIGINT, handle_exit_signal)
+
     while running:
         dt = min(clock.tick(settings.FPS) / 1000.0, 0.1)
         elapsed += dt
