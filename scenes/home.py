@@ -1,4 +1,4 @@
-"""Home room scene for Z-Pet (care, bedtime routine, decorated room, clock window)."""
+"""Home room scene for Z-Pet (icon action dock, bedtime routine, decorated room, clock window)."""
 
 from datetime import datetime
 import math
@@ -7,15 +7,19 @@ import pygame
 
 import settings
 from core.animator import load_species_animations
+from core.display import KEYS_LEFT, KEYS_RIGHT
 from core.pet import Pet
 from core.save_manager import save_pet
 
-# Stat bar & room colors
+# Stat bar & UI colors
 BAR_BG = (52, 42, 74)
 BAR_GOOD = (105, 225, 145)
 BAR_WARN = (245, 195, 85)
 BAR_LOW = (240, 95, 115)
 HEART_COLOR = (255, 105, 165)
+DOCK_SLOT_BG = (34, 24, 54)
+DOCK_SLOT_SEL = (84, 56, 136)
+DOCK_SLOT_BORDER = (68, 50, 104)
 
 # Permanent pet bed placement in the right corner of the room
 BED_X = 240
@@ -27,6 +31,130 @@ SKY_PRESET_HOURS = {
     "sunset": 18.5,
     "night": 22.0,
 }
+
+# 8 bottom-dock actions navigated with ←/→ and triggered with Enter/Space
+HOME_ACTIONS = [
+    ("feed",   "Meal"),
+    ("treat",  "Treat"),
+    ("play",   "Play"),
+    ("train",  "Train"),
+    ("clean",  "Clean"),
+    ("sleep",  "Bed"),
+    ("hug",    "Hug"),
+    ("status", "Status"),
+]
+
+
+def build_action_icons() -> dict[str, pygame.Surface]:
+    """Pre-renders crisp 14x14 pixel-art icons for the bottom dock."""
+    icons: dict[str, pygame.Surface] = {}
+    out = (26, 16, 40, 255)
+
+    # 1. Meal (red apple with leaf)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    pygame.draw.rect(s, (160, 106, 68, 255), (6, 1, 2, 3))
+    pygame.draw.rect(s, (105, 225, 145, 255), (8, 1, 3, 2))
+    pygame.draw.rect(s, out, (2, 4, 10, 8))
+    pygame.draw.rect(s, out, (3, 3, 8, 10))
+    pygame.draw.rect(s, (235, 78, 98, 255), (3, 4, 8, 8))
+    pygame.draw.rect(s, (235, 78, 98, 255), (2, 5, 10, 6))
+    s.set_at((6, 4), out)
+    s.set_at((7, 4), out)
+    pygame.draw.rect(s, (255, 178, 188, 255), (4, 5, 2, 2))
+    icons["feed"] = s
+
+    # 2. Treat (golden star candy)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    gold = (255, 212, 82, 255)
+    hi = (255, 248, 188, 255)
+    pygame.draw.rect(s, gold, (6, 1, 2, 12))
+    pygame.draw.rect(s, gold, (1, 6, 12, 2))
+    pygame.draw.rect(s, gold, (3, 5, 8, 4))
+    pygame.draw.rect(s, gold, (5, 3, 4, 8))
+    pygame.draw.rect(s, gold, (4, 4, 6, 6))
+    pygame.draw.rect(s, hi, (5, 5, 4, 4))
+    pygame.draw.rect(s, (255, 255, 255, 255), (6, 6, 2, 2))
+    icons["treat"] = s
+
+    # 3. Play (striped bouncy ball)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    pygame.draw.circle(s, out, (7, 7), 6)
+    pygame.draw.circle(s, (242, 92, 142, 255), (7, 7), 5)
+    pygame.draw.line(s, (255, 224, 112, 255), (3, 7), (11, 7), 2)
+    pygame.draw.rect(s, (255, 206, 224, 255), (4, 4, 2, 2))
+    icons["play"] = s
+
+    # 4. Train (dumbbell)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    pygame.draw.rect(s, out, (0, 4, 14, 6))
+    pygame.draw.rect(s, (206, 214, 236, 255), (4, 6, 6, 2))
+    pygame.draw.rect(s, (110, 185, 245, 255), (3, 3, 2, 8))
+    pygame.draw.rect(s, (110, 185, 245, 255), (9, 3, 2, 8))
+    pygame.draw.rect(s, (78, 142, 215, 255), (1, 5, 2, 4))
+    pygame.draw.rect(s, (78, 142, 215, 255), (11, 5, 2, 4))
+    s.set_at((3, 4), (220, 242, 255, 255))
+    s.set_at((9, 4), (220, 242, 255, 255))
+    icons["train"] = s
+
+    # 5. Clean (glossy soap bubbles + sparkle)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    pygame.draw.circle(s, (115, 218, 255, 255), (5, 8), 4)
+    pygame.draw.circle(s, (66, 152, 212, 255), (5, 8), 3)
+    pygame.draw.rect(s, (240, 250, 255, 255), (3, 6, 2, 2))
+    pygame.draw.circle(s, (150, 232, 255, 255), (10, 4), 2)
+    s.set_at((9, 3), (255, 255, 255, 255))
+    pygame.draw.line(s, (255, 240, 140, 255), (11, 9), (11, 12), 1)
+    pygame.draw.line(s, (255, 240, 140, 255), (10, 10), (12, 10), 1)
+    icons["clean"] = s
+
+    # 6a. Sleep (crescent moon)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    pygame.draw.circle(s, (255, 232, 128, 255), (7, 7), 5)
+    pygame.draw.circle(s, (0, 0, 0, 0), (10, 5), 4)
+    s.set_at((11, 3), (235, 225, 255, 255))
+    s.set_at((12, 7), (200, 185, 245, 255))
+    icons["sleep"] = s
+
+    # 6b. Wake (bright sun)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    sun = (255, 218, 92, 255)
+    pygame.draw.circle(s, sun, (7, 7), 3)
+    pygame.draw.rect(s, (255, 248, 196, 255), (6, 6, 2, 2))
+    for rx, ry, rw, rh in ((6, 1, 2, 2), (6, 11, 2, 2), (1, 6, 2, 2), (11, 6, 2, 2)):
+        pygame.draw.rect(s, sun, (rx, ry, rw, rh))
+    for px, py in ((3, 3), (10, 3), (3, 10), (10, 10)):
+        s.set_at((px, py), sun)
+    icons["wake"] = s
+
+    # 7. Hug (pixel heart)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    heart_rows = [
+        "..###..###..",
+        ".##########.",
+        ".##########.",
+        ".##########.",
+        "..########..",
+        "...######...",
+        "....####....",
+        ".....##.....",
+    ]
+    for r, row in enumerate(heart_rows):
+        for c, ch in enumerate(row):
+            if ch == "#":
+                s.set_at((1 + c, 3 + r), (255, 96, 158, 255))
+    pygame.draw.rect(s, (255, 192, 218, 255), (3, 4, 2, 2))
+    icons["hug"] = s
+
+    # 8. Status (mini colored stat-bar chart)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    pygame.draw.rect(s, (208, 198, 232, 255), (2, 2, 1, 10))
+    pygame.draw.rect(s, (208, 198, 232, 255), (2, 11, 10, 1))
+    pygame.draw.rect(s, (240, 110, 125, 255), (4, 7, 2, 4))
+    pygame.draw.rect(s, (110, 185, 245, 255), (7, 4, 2, 7))
+    pygame.draw.rect(s, (105, 225, 145, 255), (10, 2, 2, 9))
+    icons["status"] = s
+
+    return icons
 
 
 def load_bed_sprite(species_dir) -> pygame.Surface:
@@ -89,11 +217,11 @@ def draw_room_decorations(
     pygame.draw.line(canvas, (86, 62, 126), (0, 121), (settings.LOGICAL_WIDTH, 121), 1)
 
     # Floor + patterned woven rug
-    pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 22))
+    pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 126, settings.LOGICAL_WIDTH, 20))
     pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 126), (settings.LOGICAL_WIDTH, 126), 1)
-    pygame.draw.ellipse(canvas, (76, 52, 114), (72, 129, 128, 15))
-    pygame.draw.ellipse(canvas, (104, 72, 152), (82, 131, 108, 11), 1)
-    pygame.draw.ellipse(canvas, (62, 42, 94), (94, 133, 84, 7))
+    pygame.draw.ellipse(canvas, (76, 52, 114), (72, 129, 128, 14))
+    pygame.draw.ellipse(canvas, (104, 72, 152), (82, 131, 108, 10), 1)
+    pygame.draw.ellipse(canvas, (62, 42, 94), (94, 133, 84, 6))
 
     # Wall shelf with books, succulent, and Star Catch trophy
     shelf_x, shelf_y, shelf_w = 84, 74, 62
@@ -302,7 +430,7 @@ def draw_stat_bar(
 
 
 class HomeScene:
-    """Main virtual pet bedroom scene."""
+    """Main virtual pet bedroom scene with icon-driven bottom action dock."""
 
     accepts_text_input = False
 
@@ -322,13 +450,18 @@ class HomeScene:
 
         self._load_pet_assets()
         self.poop_sprite = load_poop_sprite()
-        self.dim_overlay = pygame.Surface((settings.LOGICAL_WIDTH, 110), pygame.SRCALPHA)
+        self.icons = build_action_icons()
+        self.dim_overlay = pygame.Surface((settings.LOGICAL_WIDTH, 108), pygame.SRCALPHA)
 
         self.rendered_size = settings.SPRITE_SIZE * settings.SPRITE_SCALE
         self.pet_y = 128 - self.rendered_size
         self.walk_speed = 38.0 * self.pet.personality["walk_speed_mult"]
         self.bed_walk_speed = 62.0
         self.wander_timer = 0.8
+
+        # Bottom icon dock selection state
+        self.action_idx = 0
+        self.label_timer = 2.0
 
         if pet.alive and pet.sleeping:
             self.bed_state = "sleeping"
@@ -375,7 +508,6 @@ class HomeScene:
         self.bed_sprite = load_bed_sprite(sprite_dir)
 
     def _pick_new_target(self, current_x: float) -> float:
-        """Picks a new floor spot at least 28px away so the pet visibly roams."""
         min_x = 24
         max_x = BED_X - self.rendered_size - 16
         for _ in range(8):
@@ -415,18 +547,27 @@ class HomeScene:
             clock_str = f"{hour_12}:{mm:02d}{period}"
         return hour_float, clock_str
 
-    def on_exit(self) -> None:
-        save_pet(self.pet)
+    def _action_needs_alert(self, action_id: str) -> bool:
+        if not self.pet.alive:
+            return False
+        if action_id == "feed":
+            return self.pet.hunger < 35.0
+        if action_id == "clean":
+            return len(self.pet.poops) > 0 or self.pet.clean < 40.0
+        if action_id == "sleep":
+            return (not self.pet.sleeping) and self.pet.energy < 30.0
+        if action_id == "play":
+            return (not self.pet.sleeping) and self.pet.happy < 35.0
+        return False
 
-    def handle_event(self, event: pygame.event.Event) -> tuple[str, dict] | None:
-        if event.type != pygame.KEYDOWN:
-            return None
+    def _activate_selected_action(self) -> tuple[str, dict] | None:
+        action_id = HOME_ACTIONS[self.action_idx][0]
 
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+        if action_id == "status":
             save_pet(self.pet)
-            return ("title", {})
+            return ("status", {"pet": self.pet})
 
-        if event.key == pygame.K_s:
+        if action_id == "sleep":
             ok, msg = self.pet.toggle_sleep()
             if ok:
                 if self.pet.sleeping:
@@ -441,71 +582,102 @@ class HomeScene:
                         self.animator.play("idle", restart=True)
                 save_pet(self.pet)
             self.show_toast(msg)
-        elif event.key == pygame.K_r and not self.pet.alive:
-            self.pet = Pet({"name": self.pet.name, "color": self.pet.color})
-            self._load_pet_assets()
-            self.walk_speed = 38.0 * self.pet.personality["walk_speed_mult"]
-            self.bed_state = "awake"
-            self.pet_x = 112.0
-            self.target_x = self._pick_new_target(112.0)
-            self.wander_timer = 0.8
-            self.lamp_dim = 0.0
-            save_pet(self.pet)
-            self.animator.play("happy", restart=True, next_anim="idle")
-            self.show_toast(f"A new {self.pet.name} hatched!")
-        elif event.key == pygame.K_c:
+            return None
+
+        if action_id == "clean":
             ok, msg = self.pet.clean_room()
             if ok:
                 if self.bed_state == "awake":
                     self.animator.play("happy", restart=True, next_anim="idle")
                 save_pet(self.pet)
             self.show_toast(msg)
-        elif event.key == pygame.K_i:
+            return None
+
+        if self.bed_state == "waking_up":
+            self.show_toast("Hold on, waking up!")
+            return None
+
+        if action_id == "train":
+            ok, msg = self.pet.can_train()
+            if ok:
+                save_pet(self.pet)
+                return ("teach", {"pet": self.pet})
+            self.show_toast(msg)
+            return None
+
+        if action_id == "play":
+            ok, msg = self.pet.can_play()
+            if ok:
+                save_pet(self.pet)
+                return ("minigame", {"pet": self.pet})
+            self.show_toast(msg)
+            return None
+
+        if action_id == "feed":
+            ok, msg = self.pet.feed()
+            if ok:
+                self.animator.facing_left = False
+                self.animator.play("eat", restart=True, next_anim="idle")
+                save_pet(self.pet)
+            self.show_toast(msg)
+            return None
+
+        if action_id == "treat":
+            ok, msg = self.pet.give_treat()
+            if ok:
+                self.animator.facing_left = False
+                self.animator.play("snack", restart=True, next_anim="idle")
+                self.spawn_hearts(2)
+                save_pet(self.pet)
+            self.show_toast(msg)
+            return None
+
+        if action_id == "hug":
+            ok, msg = self.pet.hug()
+            if ok:
+                self.animator.play("happy", restart=True, next_anim="idle")
+                self.spawn_hearts(4)
+                save_pet(self.pet)
+            self.show_toast(msg)
+            return None
+
+        return None
+
+    def on_exit(self) -> None:
+        save_pet(self.pet)
+
+    def handle_event(self, event: pygame.event.Event) -> tuple[str, dict] | None:
+        if event.type != pygame.KEYDOWN:
+            return None
+
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
             save_pet(self.pet)
-            return ("status", {"pet": self.pet})
-        elif event.key == pygame.K_d:
-            if self.bed_state == "waking_up":
-                self.show_toast("Hold on, waking up!")
-            else:
-                ok, msg = self.pet.can_train()
-                if ok:
-                    save_pet(self.pet)
-                    return ("teach", {"pet": self.pet})
-                self.show_toast(msg)
-        elif event.key == pygame.K_p:
-            if self.bed_state == "waking_up":
-                self.show_toast("Hold on, waking up!")
-            else:
-                ok, msg = self.pet.can_play()
-                if ok:
-                    save_pet(self.pet)
-                    return ("minigame", {"pet": self.pet})
-                self.show_toast(msg)
-        elif event.key in (pygame.K_f, pygame.K_t, pygame.K_h):
-            if self.bed_state == "waking_up":
-                self.show_toast("Hold on, waking up!")
-            elif event.key == pygame.K_f:
-                ok, msg = self.pet.feed()
-                if ok:
-                    self.animator.facing_left = False
-                    self.animator.play("eat", restart=True, next_anim="idle")
-                    save_pet(self.pet)
-                self.show_toast(msg)
-            elif event.key == pygame.K_t:
-                ok, msg = self.pet.give_treat()
-                if ok:
-                    self.animator.facing_left = False
-                    self.animator.play("snack", restart=True, next_anim="idle")
-                    self.spawn_hearts(2)
-                    save_pet(self.pet)
-                self.show_toast(msg)
-            elif event.key == pygame.K_h:
-                ok, msg = self.pet.hug()
-                if ok:
-                    self.animator.play("happy", restart=True, next_anim="idle")
-                    self.spawn_hearts(4)
-                    save_pet(self.pet)
-                self.show_toast(msg)
+            return ("title", {})
+
+        if not self.pet.alive:
+            if event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_r):
+                self.pet = Pet({"name": self.pet.name, "color": self.pet.color})
+                self._load_pet_assets()
+                self.walk_speed = 38.0 * self.pet.personality["walk_speed_mult"]
+                self.bed_state = "awake"
+                self.pet_x = 112.0
+                self.target_x = self._pick_new_target(112.0)
+                self.wander_timer = 0.8
+                self.lamp_dim = 0.0
+                save_pet(self.pet)
+                self.animator.play("happy", restart=True, next_anim="idle")
+                self.show_toast(f"A new {self.pet.name} hatched!")
+            return None
+
+        if event.key in KEYS_LEFT:
+            self.action_idx = (self.action_idx - 1) % len(HOME_ACTIONS)
+            self.label_timer = 1.8
+        elif event.key in KEYS_RIGHT:
+            self.action_idx = (self.action_idx + 1) % len(HOME_ACTIONS)
+            self.label_timer = 1.8
+        elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+            self.label_timer = 0.0
+            return self._activate_selected_action()
         return None
 
     def update(self, dt: float) -> tuple[str, dict] | None:
@@ -522,6 +694,9 @@ class HomeScene:
             self.toast_timer -= dt
             if self.toast_timer <= 0:
                 self.toast_msg = ""
+
+        if self.label_timer > 0:
+            self.label_timer = max(0.0, self.label_timer - dt)
 
         for h in self.hearts:
             h["y"] -= h["vy"] * dt
@@ -592,6 +767,63 @@ class HomeScene:
 
         return None
 
+    def _draw_icon_dock(self, canvas: pygame.Surface) -> None:
+        """Draws the clean 8-icon bottom dock and auto-fading tooltip pill."""
+        dock_y = 146
+        pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, dock_y, settings.LOGICAL_WIDTH, 24))
+        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, dock_y), (settings.LOGICAL_WIDTH, dock_y), 1)
+
+        if not self.pet.alive:
+            ctrl_surf = self.fonts["sans"].render("Enter: Hatch New Egg   Esc: Menu", True, settings.COLOR_MUTED)
+            canvas.blit(ctrl_surf, ((settings.LOGICAL_WIDTH - ctrl_surf.get_width()) // 2, 151))
+            return
+
+        slot_w = 36
+        slot_h = 20
+        gap = 3
+        start_x = (settings.LOGICAL_WIDTH - (len(HOME_ACTIONS) * slot_w + (len(HOME_ACTIONS) - 1) * gap)) // 2
+        pulse_on = int(self.elapsed * 3.0) % 2 == 0
+
+        sel_center_x = 0
+        sel_label = ""
+
+        for idx, (action_id, default_label) in enumerate(HOME_ACTIONS):
+            sx = start_x + idx * (slot_w + gap)
+            selected = idx == self.action_idx
+            sy = dock_y + (1 if selected else 2)
+            rect = pygame.Rect(sx, sy, slot_w, slot_h)
+
+            if selected:
+                pygame.draw.rect(canvas, DOCK_SLOT_SEL, rect, border_radius=4)
+                pygame.draw.rect(canvas, BAR_GOOD, rect, 1, border_radius=4)
+                # Tiny highlight pointer notch above the selected icon
+                cx = sx + slot_w // 2
+                pygame.draw.polygon(canvas, BAR_GOOD, [(cx - 3, dock_y), (cx + 3, dock_y), (cx, dock_y - 3)])
+                sel_center_x = cx
+                sel_label = "Wake" if (action_id == "sleep" and self.pet.sleeping) else default_label
+            else:
+                pygame.draw.rect(canvas, DOCK_SLOT_BG, rect, border_radius=4)
+                pygame.draw.rect(canvas, DOCK_SLOT_BORDER, rect, 1, border_radius=4)
+
+            icon_key = "wake" if (action_id == "sleep" and self.pet.sleeping) else action_id
+            icon_surf = self.icons[icon_key]
+            canvas.blit(icon_surf, (sx + (slot_w - 14) // 2, sy + (slot_h - 14) // 2))
+
+            # Subtle pulsing alert dot when a care stat needs attention
+            if self._action_needs_alert(action_id) and pulse_on:
+                pygame.draw.rect(canvas, BAR_LOW, (sx + slot_w - 6, sy + 2, 4, 4), border_radius=1)
+
+        # Auto-fading label pill above the selected icon
+        if self.label_timer > 0 and sel_label:
+            lbl_surf = self.fonts["sans"].render(sel_label, True, settings.COLOR_TEXT)
+            pill_w = lbl_surf.get_width() + 10
+            pill_h = 16
+            pill_x = max(4, min(settings.LOGICAL_WIDTH - pill_w - 4, sel_center_x - pill_w // 2))
+            pill_y = dock_y - pill_h - 4
+            pygame.draw.rect(canvas, settings.COLOR_PANEL, (pill_x, pill_y, pill_w, pill_h), border_radius=4)
+            pygame.draw.rect(canvas, BAR_GOOD, (pill_x, pill_y, pill_w, pill_h), 1, border_radius=4)
+            canvas.blit(lbl_surf, (pill_x + 5, pill_y + 1))
+
     def _draw_hud(self, canvas: pygame.Surface, clock_str: str) -> None:
         font_sans = self.fonts["sans"]
         font_mono = self.fonts["mono"]
@@ -632,16 +864,7 @@ class HomeScene:
             pygame.draw.rect(canvas, settings.COLOR_ACCENT, (box_x, 42, box_w, 18), 1, border_radius=3)
             canvas.blit(msg_surf, (box_x + 7, 44))
 
-        pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 148, settings.LOGICAL_WIDTH, 22))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 148), (settings.LOGICAL_WIDTH, 148), 1)
-        if not self.pet.alive:
-            ctrl_text = "[R] Hatch New Egg    [Esc] Menu"
-        else:
-            sleep_lbl = "S:Wk" if self.pet.sleeping else "S:Bd"
-            ctrl_text = f"F:Eat T:Trt P:Ply D:Trn C:Cln {sleep_lbl} I:Sts"
-
-        ctrl_surf = font_sans.render(ctrl_text, True, settings.COLOR_MUTED)
-        canvas.blit(ctrl_surf, ((settings.LOGICAL_WIDTH - ctrl_surf.get_width()) // 2, 152))
+        self._draw_icon_dock(canvas)
 
     def render(self, canvas: pygame.Surface) -> None:
         hour_float, clock_str = self._get_clock_info()
