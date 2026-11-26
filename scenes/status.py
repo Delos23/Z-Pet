@@ -48,7 +48,9 @@ class StatusScene:
             return None
         if event.key in (pygame.K_ESCAPE, pygame.K_q, pygame.K_i, pygame.K_RETURN, pygame.K_SPACE):
             return ("home", {"pet": self.pet})
-        return None
+        return None        
+        if event.key == pygame.K_g:
+            return ("guide", {"return_to": "status", "pet": self.pet})
 
     def update(self, dt: float) -> None:
         self.animator.update(dt)
@@ -140,5 +142,5 @@ class StatusScene:
         # Bottom footer
         pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 148, settings.LOGICAL_WIDTH, 22))
         pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 148), (settings.LOGICAL_WIDTH, 148), 1)
-        foot = self.fonts["sans"].render("Esc / I / Enter: Back to Room", True, settings.COLOR_MUTED)
+        foot = self.fonts["sans"].render("G:The Guide   Esc / I: Back to Room", True, settings.COLOR_MUTED)
         canvas.blit(foot, ((settings.LOGICAL_WIDTH - foot.get_width()) // 2, 152))

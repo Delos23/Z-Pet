@@ -15,6 +15,7 @@ from core.save_manager import (
     save_config,
 )
 from core.species import get_species, get_starter_ids
+from core.display import KEYS_DOWN, KEYS_LEFT, KEYS_RIGHT, KEYS_UP
 
 SEL_FILL = (76, 52, 122)
 DISABLED_TEXT = (96, 86, 122)
@@ -78,11 +79,12 @@ class TitleScene:
         self.preview = get_save_preview() if self.save_exists else None
 
         self.items = [
-            ("continue", "Continue"),
-            ("new_pet", "New Pet"),
-            ("settings", "Settings"),
-            ("quit", "Quit"),
-        ]
+         ("continue", "Continue"),
+         ("new_pet", "New Pet"),
+         ("guide", "The Guide"),
+         ("settings", "Settings"),
+         ("quit", "Quit"),
+     ]
         self.cursor = 0 if self.save_exists else 1
 
         preview_species = self.preview["species_id"] if self.preview else "spark_kit"
@@ -101,10 +103,10 @@ class TitleScene:
         if event.type != pygame.KEYDOWN:
             return None
 
-        if event.key in (pygame.K_UP, pygame.K_w):
-            self.cursor = (self.cursor - 1) % len(self.items)
-        elif event.key in (pygame.K_DOWN, pygame.K_s):
-            self.cursor = (self.cursor + 1) % len(self.items)
+        if event.key in KEYS_UP:
+          self.cursor = (self.cursor - 1) % len(self.items)
+        elif event.key in KEYS_DOWN:
+          self.cursor = (self.cursor + 1) % len(self.items)
         elif event.key in (pygame.K_ESCAPE, pygame.K_q):
             return ("quit", {})
         elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
@@ -117,6 +119,8 @@ class TitleScene:
                 return ("home", {"pet": pet, "offline": offline})
             if action == "new_pet":
                 return ("new_pet", {})
+            if action == "guide":
+             return ("guide", {"return_to": "title"})
             if action == "settings":
                 return ("settings", {})
             if action == "quit":
@@ -153,13 +157,13 @@ class TitleScene:
         info_surf = self.fonts["sans"].render(info_txt, True, info_col)
         canvas.blit(info_surf, ((146 - info_surf.get_width()) // 2, 124))
 
-        panel_rect = pygame.Rect(150, 12, 160, 124)
+        panel_rect = pygame.Rect(150, 8, 160, 134)
         pygame.draw.rect(canvas, settings.COLOR_PANEL, panel_rect, border_radius=6)
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, panel_rect, 1, border_radius=6)
 
         for idx, (action, label) in enumerate(self.items):
-            row_y = 20 + idx * 28
-            row_rect = pygame.Rect(158, row_y, 144, 24)
+            row_y = 14 + idx * 25
+            row_rect = pygame.Rect(158, row_y, 144, 22)
             is_selected = idx == self.cursor
             is_disabled = action == "continue" and not self.save_exists
 
@@ -244,54 +248,68 @@ class NewPetScene:
         return None
 
     def handle_event(self, event: pygame.event.Event) -> tuple[str, dict] | None:
-        if event.type != pygame.KEYDOWN:
-            return None
+      if event.type != pygame.KEYDOWN:
+          return None
 
-        if event.key == pygame.K_ESCAPE:
-            return ("title", {})
+      if event.key == pygame.K_ESCAPE:
+          return ("title", {})
 
-        if event.key == pygame.K_UP:
-            self.focus_idx = (self.focus_idx - 1) % len(self.rows)
-            return None
-        if event.key in (pygame.K_DOWN, pygame.K_TAB):
-            self.focus_idx = (self.focus_idx + 1) % len(self.rows)
-            return None
+      if event.key == pygame.K_RETURN:
+          pet = create_new_pet(
+              self.custom_name,
+              color=self.selected_color_id,
+              species_id=self.selected_species_id,
+          )
+          return ("home", {"pet": pet, "offline": 0.0, "is_new": True})
 
-        if event.key == pygame.K_RETURN:
-            pet = create_new_pet(
-                self.custom_name,
-                color=self.selected_color_id,
-                species_id=self.selected_species_id,
-            )
-            return ("home", {"pet": pet, "offline": 0.0, "is_new": True})
+      if self.focus == "name":
+          if event.key == pygame.K_UP:
+              self.focus_idx = (self.focus_idx - 1) % len(self.rows)
+              return None
+          if event.key in (pygame.K_DOWN, pygame.K_TAB):
+              self.focus_idx = (self.focus_idx + 1) % len(self.rows)
+              return None
+          if event.key == pygame.K_BACKSPACE:
+              self.custom_name = self.custom_name[:-1]
+              return None
+          ch = self._key_to_char(event.key)
+          if ch and len(self.custom_name) < 10:
+              self.custom_name += ch
+          return None
 
-        if self.focus == "species":
-            if event.key in (pygame.K_LEFT, pygame.K_a):
-                self.species_idx = (self.species_idx - 1) % len(self.starter_ids)
-                self._load_preview_animator(play_happy=True)
-            elif event.key in (pygame.K_RIGHT, pygame.K_d, pygame.K_SPACE):
-                self.species_idx = (self.species_idx + 1) % len(self.starter_ids)
-                self._load_preview_animator(play_happy=True)
-            return None
+        # Species & Color rows use F/X/Z/C and arrow keys
+      if event.key in KEYS_UP:
+          self.focus_idx = (self.focus_idx - 1) % len(self.rows)
+          return None
+      if event.key in KEYS_DOWN or event.key == pygame.K_TAB:
+          self.focus_idx = (self.focus_idx + 1) % len(self.rows)
+          return None
 
-        if self.focus == "color":
-            if event.key in (pygame.K_LEFT, pygame.K_a):
-                self.color_idx = (self.color_idx - 1) % len(PET_COLOR_ORDER)
-                self._load_preview_animator(play_happy=True)
-            elif event.key in (pygame.K_RIGHT, pygame.K_d, pygame.K_SPACE):
-                self.color_idx = (self.color_idx + 1) % len(PET_COLOR_ORDER)
-                self._load_preview_animator(play_happy=True)
-            return None
-
+      if self.focus == "species":
+          if event.key in KEYS_LEFT:
+              self.species_idx = (self.species_idx - 1) % len(self.starter_ids)
+              self._load_preview_animator(play_happy=True)
+          elif event.key in KEYS_RIGHT or event.key == pygame.K_SPACE:
+              self.species_idx = (self.species_idx + 1) % len(self.starter_ids)
+              self._load_preview_animator(play_happy=True)
+      elif self.focus == "color":
+          if event.key in KEYS_LEFT:
+              self.color_idx = (self.color_idx - 1) % len(PET_COLOR_ORDER)
+              self._load_preview_animator(play_happy=True)
+          elif event.key in KEYS_RIGHT or event.key == pygame.K_SPACE:
+              self.color_idx = (self.color_idx + 1) % len(PET_COLOR_ORDER)
+              self._load_preview_animator(play_happy=True)
+      return None
+    
         # Name field focused
-        if event.key == pygame.K_BACKSPACE:
+      if event.key == pygame.K_BACKSPACE:
             self.custom_name = self.custom_name[:-1]
             return None
 
-        ch = self._key_to_char(event.key)
-        if ch and len(self.custom_name) < 10:
+            ch = self._key_to_char(event.key)
+      if ch and len(self.custom_name) < 10:
             self.custom_name += ch
-        return None
+            return None
 
     def update(self, dt: float) -> None:
         self.elapsed += dt
@@ -391,10 +409,10 @@ class NewPetScene:
         canvas.blit(notice, (98, 121))
 
         foot = (
-            "Type Name  Bksp:Del  Up/Dn:Row  Enter:Hatch"
-            if name_focused
-            else "Lt/Rt:Pick  Up/Dn:Row  Enter:Hatch"
-        )
+          "Type Name  Bksp:Del  ↑/↓:Row  Enter:Hatch"
+          if name_focused
+          else "←/→:Pick  ↑/↓:Row  Enter:Hatch"
+         )
         _draw_footer(canvas, self.fonts["sans"], foot)
 
 
@@ -449,22 +467,21 @@ class SettingsScene:
             return None
 
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            return ("title", {})
-        if event.key in (pygame.K_UP, pygame.K_w):
-            self.cursor = (self.cursor - 1) % len(self.rows)
-        elif event.key in (pygame.K_DOWN, pygame.K_s):
-            self.cursor = (self.cursor + 1) % len(self.rows)
-        elif event.key in (pygame.K_LEFT, pygame.K_a):
-            if self.rows[self.cursor] != "back":
-                self._cycle_option(-1)
-        elif event.key in (pygame.K_RIGHT, pygame.K_d):
-            if self.rows[self.cursor] != "back":
-                self._cycle_option(1)
+          return ("title", {})
+        if event.key in KEYS_UP:
+          self.cursor = (self.cursor - 1) % len(self.rows)
+        elif event.key in KEYS_DOWN:
+          self.cursor = (self.cursor + 1) % len(self.rows)
+        elif event.key in KEYS_LEFT:
+          if self.rows[self.cursor] != "back":
+              self._cycle_option(-1)
+        elif event.key in KEYS_RIGHT:
+          if self.rows[self.cursor] != "back":
+              self._cycle_option(1)
         elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-            if self.rows[self.cursor] == "back":
-                return ("title", {})
-            self._cycle_option(1)
-        return None
+          if self.rows[self.cursor] == "back":
+              return ("title", {})
+          self._cycle_option(1)
 
     def update(self, dt: float) -> None:
         self.elapsed += dt
@@ -511,4 +528,4 @@ class SettingsScene:
                 val_surf = self.fonts["mono"].render(val_txt, True, val_col)
                 canvas.blit(val_surf, (290 - val_surf.get_width(), row_y + 3))
 
-        _draw_footer(canvas, self.fonts["sans"], "Up/Dn:Row  Lt/Rt:Change  Esc:Back")
+        _draw_footer(canvas, self.fonts["sans"], "↑/↓:Row  ←/→:Change  Esc:Back")

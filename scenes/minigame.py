@@ -8,6 +8,7 @@ import settings
 from core.animator import load_species_animations
 from core.pet import Pet
 from core.save_manager import save_pet
+from core.display import KEYS_LEFT, KEYS_RIGHT
 
 ROUND_SECONDS = 20.0
 PET_SPEED = 148.0
@@ -178,9 +179,9 @@ class StarCatchScene:
             self.animator.play("idle")
         else:
             move = 0.0
-            if pygame.K_LEFT in self.held_keys or pygame.K_a in self.held_keys:
+            if any(k in self.held_keys for k in KEYS_LEFT):
                 move -= 1.0
-            if pygame.K_RIGHT in self.held_keys or pygame.K_d in self.held_keys:
+            if any(k in self.held_keys for k in KEYS_RIGHT):
                 move += 1.0
 
             if move != 0.0:
@@ -323,9 +324,9 @@ class StarCatchScene:
         pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 148, settings.LOGICAL_WIDTH, 22))
         pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 148), (settings.LOGICAL_WIDTH, 148), 1)
         footer = (
-            "Enter:Play Again   Esc:Home"
-            if self.phase == "result"
-            else "A/D or Lt/Rt: Move   Esc:Home"
-        )
+         "Enter:Play Again   Esc:Home"
+         if self.phase == "result"
+         else "←/→:Move   Esc:Home"
+     )
         foot_s = self.fonts["sans"].render(footer, True, settings.COLOR_MUTED)
         canvas.blit(foot_s, ((settings.LOGICAL_WIDTH - foot_s.get_width()) // 2, 152))

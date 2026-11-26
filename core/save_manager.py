@@ -9,12 +9,15 @@ from core.species import get_species
 
 SAVE_FILE: Path = settings.SAVE_DIR / "save.json"
 CONFIG_FILE: Path = settings.SAVE_DIR / "config.json"
+GUIDE_FILE: Path = settings.SAVE_DIR / "guide.json"
 
 DEFAULT_CONFIG: dict = {
     "clock_24h": False,
     "sky_mode": "auto",
     "time_scale": 1.0,
 }
+
+_DISCOVERED_CACHE: set[str] | None = None
 
 
 def _atomic_write_json(path: Path, payload: dict) -> None:
@@ -23,6 +26,41 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
     with open(tmp_file, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     os.replace(tmp_file, path)
+
+
+def load_discovered_species() -> set[str]:
+    """Loads permanently discovered species IDs for The Guide."""
+    global _DISCOVERED_CACHE
+    if _DISCOVERED_CACHE is not None:
+        return set(_DISCOVERED_CACHE)
+
+    discovered: set[str] = set()
+    if GUIDE_FILE.exists():
+        try:
+            with open(GUIDE_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            if isinstance(raw, dict) and isinstance(raw.get("discovered"), list):
+                discovered = {str(sid) for sid in raw["discovered"]}
+        except (OSError, json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    _DISCOVERED_CACHE = discovered
+    return set(discovered)
+
+
+def record_discovery(species_id: str) -> bool:
+    """Marks a species as discovered in guide.json. Returns True if newly unlocked."""
+    global _DISCOVERED_CACHE
+    if not species_id:
+        return False
+    discovered = load_discovered_species()
+    if species_id in discovered:
+        return False
+
+    discovered.add(species_id)
+    _DISCOVERED_CACHE = discovered
+    _atomic_write_json(GUIDE_FILE, {"discovered": sorted(discovered)})
+    return True
 
 
 def load_config() -> dict:
@@ -77,6 +115,7 @@ def get_save_preview() -> dict | None:
 
 
 def save_pet(pet: Pet) -> None:
+    record_discovery(pet.species_id)
     _atomic_write_json(SAVE_FILE, pet.to_dict())
 
 

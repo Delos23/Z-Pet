@@ -24,9 +24,15 @@ LINUX_KEYMAP = {
     49: pygame.K_n, 50: pygame.K_m,
     57: pygame.K_SPACE,
     88: pygame.K_F12,
-    103: pygame.K_UP, 105: pygame.K_LEFT, 106: pygame.K_RIGHT, 108: pygame.K_DOWN,
+    103: pygame.K_UP, 105: pygame.K_LEFT, 106: pygame.K_RIGHT, 108: pygame.K_DOWN,# Shared directional controls: Arrow keys + F (↑), X (↓), Z (←), C (→)
+
+    
 }
 
+KEYS_UP = (pygame.K_UP, pygame.K_f)
+KEYS_DOWN = (pygame.K_DOWN, pygame.K_x)
+KEYS_LEFT = (pygame.K_LEFT, pygame.K_z)
+KEYS_RIGHT = (pygame.K_RIGHT, pygame.K_c)
 EV_KEY = 1
 INPUT_EVENT_FMT = "llHHi"
 INPUT_EVENT_SIZE = struct.calcsize(INPUT_EVENT_FMT)

@@ -6,6 +6,7 @@ import settings
 from core.animator import load_species_animations
 from core.pet import MAX_DAILY_TRAINS, Pet
 from core.save_manager import save_pet
+from core.display import KEYS_DOWN, KEYS_UP
 
 SEL_FILL = (76, 52, 122)
 BAR_BG = (42, 32, 64)
@@ -118,12 +119,12 @@ class TeachScene:
             return None
 
         if self.phase == "select":
-            if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                return ("home", {"pet": self.pet})
-            if event.key in (pygame.K_UP, pygame.K_w):
-                self.cursor_idx = (self.cursor_idx - 1) % len(STAT_DRILLS)
+            if event.key in KEYS_UP:
+             self.cursor_idx = (self.cursor_idx - 1) % len(STAT_DRILLS)
+            elif event.key in KEYS_DOWN:
+             self.cursor_idx = (self.cursor_idx + 1) % len(STAT_DRILLS)
             elif event.key in (pygame.K_DOWN, pygame.K_s):
-                self.cursor_idx = (self.cursor_idx + 1) % len(STAT_DRILLS)
+             self.cursor_idx = (self.cursor_idx + 1) % len(STAT_DRILLS)
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                 ok, msg = self.pet.can_train()
                 if ok:
@@ -243,7 +244,7 @@ class TeachScene:
                 val_s = self.fonts["mono"].render(f"{val:3d}", True, settings.COLOR_TEXT)
                 canvas.blit(val_s, (272, row_y + 4))
 
-            self._draw_footer(canvas, "Up/Dn:Stat  Enter:Train  Esc:Back")
+            self._draw_footer(canvas, "↑/↓:Stat  Enter:Train  Esc:Back")
 
         elif self.phase == "drill":
             _, short_lbl, drill_name, accent = STAT_DRILLS[self.cursor_idx]
