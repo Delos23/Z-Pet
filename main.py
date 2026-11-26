@@ -63,8 +63,8 @@ def main() -> None:
     config = load_config()
     scene = TitleScene(fonts, config)
     sound.init(
-        sfx_enabled=config.get("sfx", True),
-        music_enabled=config.get("music", True),
+        sfx_level=config.get("sfx", "high"),
+        music_level=config.get("music", "high"),
     )
     
     sound.set_mood("somber" if sound.is_night_time(config) else "day")

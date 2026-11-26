@@ -418,7 +418,7 @@ class NewPetScene:
 
 
 class SettingsScene:
-    """User preferences: SFX, Music, 12h/24h Clock, Window Sky, and Game Speed."""
+    """User preferences: SFX/Music volume levels, 12h/24h Clock, Window Sky, and Game Speed."""
 
     accepts_text_input = False
 
@@ -431,13 +431,19 @@ class SettingsScene:
     def _cycle_option(self, delta: int) -> None:
         key = self.rows[self.cursor]
         if key == "sfx":
-            self.config["sfx"] = not self.config.get("sfx", True)
-            sound.set_sfx_enabled(self.config["sfx"])
-            if self.config["sfx"]:
+            levels = sound.VOLUME_LEVELS
+            cur = sound.normalize_volume(self.config.get("sfx", "high"))
+            new_lvl = levels[(levels.index(cur) + delta) % len(levels)]
+            self.config["sfx"] = new_lvl
+            sound.set_sfx_level(new_lvl)
+            if new_lvl != "off":
                 sound.play("select")
         elif key == "music":
-            self.config["music"] = not self.config.get("music", True)
-            sound.set_music_enabled(self.config["music"])
+            levels = sound.VOLUME_LEVELS
+            cur = sound.normalize_volume(self.config.get("music", "high"))
+            new_lvl = levels[(levels.index(cur) + delta) % len(levels)]
+            self.config["music"] = new_lvl
+            sound.set_music_level(new_lvl)
             sound.play("click")
         elif key == "clock_24h":
             self.config["clock_24h"] = not self.config.get("clock_24h", False)
@@ -458,10 +464,8 @@ class SettingsScene:
         save_config(self.config)
 
     def _value_label(self, key: str) -> str:
-        if key == "sfx":
-            return "ON" if self.config.get("sfx", True) else "OFF"
-        if key == "music":
-            return "ON" if self.config.get("music", True) else "OFF"
+        if key in ("sfx", "music"):
+            return sound.normalize_volume(self.config.get(key, "high")).upper()
         if key == "clock_24h":
             return "24-Hour" if self.config.get("clock_24h", False) else "12-Hour"
         if key == "sky_mode":
@@ -470,6 +474,17 @@ class SettingsScene:
             s = float(self.config.get("time_scale", 1.0))
             return "1x Normal" if s == 1.0 else (f"{int(s)}x Fast" if s == 10.0 else f"{int(s)}x Test")
         return ""
+
+    def _value_color(self, key: str) -> tuple[int, int, int]:
+        if key in ("sfx", "music"):
+            lvl = sound.normalize_volume(self.config.get(key, "high"))
+            return {
+                "off": (240, 95, 115),
+                "low": (126, 206, 255),
+                "med": (255, 224, 96),
+                "high": (105, 225, 145),
+            }[lvl]
+        return (255, 224, 96)
 
     def handle_event(self, event: pygame.event.Event) -> tuple[str, dict] | None:
         if event.type != pygame.KEYDOWN:
@@ -535,9 +550,8 @@ class SettingsScene:
 
             if key != "back":
                 val_txt = f"< {self._value_label(key)} >"
-                is_on_toggle = key in ("sfx", "music") and self.config.get(key, True)
-                val_col = (105, 225, 145) if is_on_toggle else (255, 224, 96)
-                val_s = self.fonts["mono"].render(val_txt, True, val_col if selected else settings.COLOR_MUTED)
+                val_col = self._value_color(key) if selected else settings.COLOR_MUTED
+                val_s = self.fonts["mono"].render(val_txt, True, val_col)
                 canvas.blit(val_s, (rect.right - val_s.get_width() - 10, ry + (17 - val_s.get_height()) // 2))
 
         _draw_footer(canvas, self.fonts["sans"], "↑/↓:Row  ←/→:Change  Esc:Back")

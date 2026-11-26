@@ -11,13 +11,29 @@ SAVE_FILE: Path = settings.SAVE_DIR / "save.json"
 CONFIG_FILE: Path = settings.SAVE_DIR / "config.json"
 GUIDE_FILE: Path = settings.SAVE_DIR / "guide.json"
 
+VOLUME_LEVELS = ("off", "low", "med", "high")
+
 DEFAULT_CONFIG: dict = {
     "clock_24h": False,
     "sky_mode": "auto",
     "time_scale": 1.0,
-    "sfx": True,
-    "music": True,
+    "sfx": "high",
+    "music": "high",
 }
+
+
+def _normalize_volume(val, default: str = "high") -> str:
+    if isinstance(val, bool):
+        return "high" if val else "off"
+    if isinstance(val, str):
+        key = val.strip().lower()
+        if key in VOLUME_LEVELS:
+            return key
+        if key in ("on", "true", "1"):
+            return "high"
+        if key in ("false", "0"):
+            return "off"
+    return default
 
 _DISCOVERED_CACHE: set[str] | None = None
 
@@ -75,9 +91,9 @@ def load_config() -> dict:
             raw = json.load(f)
         if isinstance(raw, dict):
             cfg["clock_24h"] = bool(raw.get("clock_24h", cfg["clock_24h"]))
-            legacy_sound = bool(raw.get("sound", True))
-            cfg["sfx"] = bool(raw.get("sfx", legacy_sound))
-            cfg["music"] = bool(raw.get("music", legacy_sound))
+            legacy_sound = _normalize_volume(raw.get("sound", "high"))
+            cfg["sfx"] = _normalize_volume(raw.get("sfx", legacy_sound), default=legacy_sound)
+            cfg["music"] = _normalize_volume(raw.get("music", legacy_sound), default=legacy_sound)
             sky = str(raw.get("sky_mode", cfg["sky_mode"]))
             if sky in ("auto", "dawn", "day", "sunset", "night"):
                 cfg["sky_mode"] = sky

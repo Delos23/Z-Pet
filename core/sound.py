@@ -17,8 +17,31 @@ _BGM_DIV = 2
 _BGM_RATE = float(DEFAULT_SAMPLE_RATE // 2)
 _DRUMS: dict[str, list[int]] = {}
 
-_SFX_ENABLED = True
-_MUSIC_ENABLED = True
+VOLUME_LEVELS = ("off", "low", "med", "high")
+_VOLUME_GAIN: dict[str, float] = {
+    "off": 0.0,
+    "low": 0.28,
+    "med": 0.60,
+    "high": 1.0,
+}
+
+_SFX_LEVEL = "high"
+_MUSIC_LEVEL = "high"
+
+
+def normalize_volume(val, default: str = "high") -> str:
+    """Normalizes legacy bools or strings into 'off', 'low', 'med', or 'high'."""
+    if isinstance(val, bool):
+        return "high" if val else "off"
+    if isinstance(val, str):
+        key = val.strip().lower()
+        if key in _VOLUME_GAIN:
+            return key
+        if key in ("on", "true", "1"):
+            return "high"
+        if key in ("false", "0"):
+            return "off"
+    return default
 _READY = False
 _SOUNDS: dict[str, pygame.mixer.Sound] = {}
 
@@ -1359,7 +1382,7 @@ def _schedule_next_section() -> None:
 def _play_section_now(track_name: str, sec_idx: int) -> None:
     global _PLAYING_TRACK, _PLAYING_SEC, _QUEUED_SEC, _NEED_PLAY_SEC, _NEED_QUEUE_SEC
     snd = _SECTION_CACHE.get((track_name, sec_idx))
-    if snd is None or _BGM_CHANNEL is None or not _MUSIC_ENABLED or not _READY:
+    if snd is None or _BGM_CHANNEL is None or _MUSIC_LEVEL == "off" or not _READY:
         return
     _PLAYING_TRACK = track_name
     _PLAYING_SEC = sec_idx
@@ -1368,6 +1391,7 @@ def _play_section_now(track_name: str, sec_idx: int) -> None:
     _NEED_QUEUE_SEC = None
     try:
         _BGM_CHANNEL.stop()
+        _BGM_CHANNEL.set_volume(_VOLUME_GAIN[_MUSIC_LEVEL])
         _BGM_CHANNEL.play(snd, loops=0)
         if sec_idx == 0:
             print(f"Z-Pet BGM playing: {track_name}")
@@ -1379,7 +1403,7 @@ def _play_section_now(track_name: str, sec_idx: int) -> None:
 
 def _start_random_track(mood: str) -> None:
     global _PLAYING_TRACK, _PLAYING_SEC, _QUEUED_SEC, _NEED_PLAY_SEC, _NEED_QUEUE_SEC, _NEXT_RANDOM_TRACK
-    if not _MUSIC_ENABLED or not _READY or _BGM_CHANNEL is None:
+    if _MUSIC_LEVEL == "off" or not _READY or _BGM_CHANNEL is None:
         return
 
     pool = _MOOD_PLAYLISTS.get(mood)
@@ -1399,7 +1423,6 @@ def _start_random_track(mood: str) -> None:
         _play_section_now(pick, 0)
         return
 
-    # On initial startup (empty cache), build section 0 immediately so music begins at once
     if not _SECTION_CACHE:
         raw = _build_section_bytes(pick, 0)
         if raw is not None:
@@ -1420,7 +1443,6 @@ def _start_random_track(mood: str) -> None:
     except pygame.error:
         pass
     _request_section(pick, 0, urgent=True)
-
 
 def _build_bank() -> dict[str, pygame.mixer.Sound]:
     return {
@@ -1518,11 +1540,31 @@ def _try_open_mixer() -> tuple[tuple[int, int, int] | None, str]:
     return None, last_err
 
 
-def init(sfx_enabled: bool = True, music_enabled: bool = True) -> bool:
-    global _SFX_ENABLED, _MUSIC_ENABLED, _READY, _SOUNDS, _BGM_CHANNEL
+def _apply_sfx_channel_volume() -> None:
+    if not _READY:
+        return
+    gain = _VOLUME_GAIN[_SFX_LEVEL]
+    try:
+        for ch_idx in range(1, pygame.mixer.get_num_channels()):
+            ch = pygame.mixer.Channel(ch_idx)
+            ch.set_volume(gain)
+            if gain <= 0.0:
+                ch.stop()
+    except pygame.error:
+        pass
+
+
+def init(
+    sfx_enabled: str | bool = "high",
+    music_enabled: str | bool = "high",
+    *,
+    sfx_level: str | bool | None = None,
+    music_level: str | bool | None = None,
+) -> bool:
+    global _SFX_LEVEL, _MUSIC_LEVEL, _READY, _SOUNDS, _BGM_CHANNEL
     global _MIXER_RATE, _MIXER_CH, _BGM_DIV, _BGM_RATE, _DRUMS, _WORKER_STARTED
-    _SFX_ENABLED = bool(sfx_enabled)
-    _MUSIC_ENABLED = bool(music_enabled)
+    _SFX_LEVEL = normalize_volume(sfx_enabled if sfx_level is None else sfx_level)
+    _MUSIC_LEVEL = normalize_volume(music_enabled if music_level is None else music_level)
 
     cfg, info = _try_open_mixer()
     if cfg is None:
@@ -1541,9 +1583,11 @@ def init(sfx_enabled: bool = True, music_enabled: bool = True) -> bool:
     pygame.mixer.set_num_channels(8)
     pygame.mixer.set_reserved(1)
     _BGM_CHANNEL = pygame.mixer.Channel(0)
+    _BGM_CHANNEL.set_volume(_VOLUME_GAIN[_MUSIC_LEVEL])
     _SOUNDS = _build_bank()
     _SECTION_CACHE.clear()
     _READY = True
+    _apply_sfx_channel_volume()
 
     if not _WORKER_STARTED:
         _WORKER_STARTED = True
@@ -1551,28 +1595,27 @@ def init(sfx_enabled: bool = True, music_enabled: bool = True) -> bool:
 
     print(
         f"Z-Pet audio ready: {_MIXER_RATE}Hz fmt={fmt} {_MIXER_CH}ch "
-        f"(driver={info}, sfx={_SFX_ENABLED}, music={_MUSIC_ENABLED})"
+        f"(driver={info}, sfx={_SFX_LEVEL}, music={_MUSIC_LEVEL})"
     )
     return True
 
 
-def set_sfx_enabled(enabled: bool) -> None:
-    global _SFX_ENABLED
-    _SFX_ENABLED = bool(enabled)
-    if not _SFX_ENABLED and _READY:
-        try:
-            for ch_idx in range(1, pygame.mixer.get_num_channels()):
-                pygame.mixer.Channel(ch_idx).stop()
-        except pygame.error:
-            pass
+def set_sfx_level(level: str | bool) -> str:
+    """Sets SFX volume ('off', 'low', 'med', 'high') without disturbing music."""
+    global _SFX_LEVEL
+    _SFX_LEVEL = normalize_volume(level)
+    _apply_sfx_channel_volume()
+    return _SFX_LEVEL
 
 
-def set_music_enabled(enabled: bool) -> None:
-    global _MUSIC_ENABLED, _NEED_PLAY_SEC, _NEED_QUEUE_SEC, _QUEUED_SEC
-    _MUSIC_ENABLED = bool(enabled)
+def set_music_level(level: str | bool) -> str:
+    """Sets Music volume ('off', 'low', 'med', 'high') live without restarting the track."""
+    global _MUSIC_LEVEL, _NEED_PLAY_SEC, _NEED_QUEUE_SEC, _QUEUED_SEC
+    _MUSIC_LEVEL = normalize_volume(level)
     if not _READY or _BGM_CHANNEL is None:
-        return
-    if not _MUSIC_ENABLED:
+        return _MUSIC_LEVEL
+
+    if _MUSIC_LEVEL == "off":
         _NEED_PLAY_SEC = None
         _NEED_QUEUE_SEC = None
         _QUEUED_SEC = None
@@ -1580,34 +1623,61 @@ def set_music_enabled(enabled: bool) -> None:
             _BGM_CHANNEL.stop()
         except pygame.error:
             pass
-    elif _CURRENT_MOOD and not _PAUSED_BGM:
+        return _MUSIC_LEVEL
+
+    try:
+        _BGM_CHANNEL.set_volume(_VOLUME_GAIN[_MUSIC_LEVEL])
+    except pygame.error:
+        pass
+
+    if _CURRENT_MOOD and not _PAUSED_BGM and not _BGM_CHANNEL.get_busy() and _NEED_PLAY_SEC is None:
         _start_random_track(_CURRENT_MOOD)
+    return _MUSIC_LEVEL
+
+
+def get_sfx_level() -> str:
+    return _SFX_LEVEL
+
+
+def get_music_level() -> str:
+    return _MUSIC_LEVEL
+
+
+def set_sfx_enabled(enabled: bool) -> None:
+    set_sfx_level("high" if enabled else "off")
+
+
+def set_music_enabled(enabled: bool) -> None:
+    set_music_level("high" if enabled else "off")
 
 
 def is_sfx_enabled() -> bool:
-    return _SFX_ENABLED
+    return _SFX_LEVEL != "off"
 
 
 def is_music_enabled() -> bool:
-    return _MUSIC_ENABLED
+    return _MUSIC_LEVEL != "off"
 
 
 def set_enabled(enabled: bool) -> None:
-    set_sfx_enabled(enabled)
-    set_music_enabled(enabled)
+    lvl = "high" if enabled else "off"
+    set_sfx_level(lvl)
+    set_music_level(lvl)
 
 
 def is_enabled() -> bool:
-    return _SFX_ENABLED or _MUSIC_ENABLED
+    return _SFX_LEVEL != "off" or _MUSIC_LEVEL != "off"
 
 
 def play(name: str) -> None:
-    if not _SFX_ENABLED or not _READY:
+    if _SFX_LEVEL == "off" or not _READY:
         return
     snd = _SOUNDS.get(name)
     if snd is not None:
         try:
-            snd.play()
+            ch = snd.play()
+            if ch is not None:
+                ch.set_volume(_VOLUME_GAIN[_SFX_LEVEL])
         except pygame.error:
             pass
 
@@ -1624,7 +1694,7 @@ def set_mood(mood: str, force: bool = False) -> None:
         return
 
     _CURRENT_MOOD = mood
-    if _MUSIC_ENABLED:
+    if _MUSIC_LEVEL != "off":
         _start_random_track(mood)
 
 
@@ -1635,7 +1705,7 @@ def play_music(track_name: str, force: bool = False) -> None:
 def update() -> None:
     """Harvests built sections, chains sections gaplessly, and shuffles when a song ends."""
     global _PLAYING_SEC, _QUEUED_SEC, _NEED_PLAY_SEC, _NEED_QUEUE_SEC
-    if not _MUSIC_ENABLED or not _READY or _PAUSED_BGM or not _CURRENT_MOOD or _BGM_CHANNEL is None:
+    if _MUSIC_LEVEL == "off" or not _READY or _PAUSED_BGM or not _CURRENT_MOOD or _BGM_CHANNEL is None:
         return
 
     _harvest_ready()
