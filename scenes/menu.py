@@ -421,16 +421,53 @@ class NewPetScene:
         _draw_footer(canvas, self.fonts["sans"], foot)
 
 
+import hashlib
+
+# SHA-256 hash of private 4-12 digit code (digits 1-9) to reveal Game Speed
+DEV_SPEED_HASH = "a6e0f1a76758711ecc0404d508d188f3d05e40247fda62936f10624934d34d43"
+
+
 class SettingsScene:
-    """User preferences: SFX/Music volume levels, 12h/24h Clock, Window Sky, and Game Speed."""
+    """User preferences: SFX/Music volume levels, 12h/24h Clock, and Window Sky."""
 
     accepts_text_input = False
 
     def __init__(self, fonts: dict, config: dict):
         self.fonts = fonts
         self.config = config
-        self.rows = ["sfx", "music", "clock_24h", "sky_mode", "time_scale", "back"]
+        self.dev_unlocked = float(self.config.get("time_scale", 1.0)) != 1.0
+        self.rows = ["sfx", "music", "clock_24h", "sky_mode", "back"]
+        if self.dev_unlocked:
+            self.rows.insert(self.rows.index("back"), "time_scale")
         self.cursor = 0
+        self._code_buf = ""
+
+    def _try_unlock_dev_speed(self, event: pygame.event.Event) -> bool:
+        """Unlocks the hidden Game Speed row when the private digit code is entered."""
+        if self.dev_unlocked or not DEV_SPEED_HASH:
+            return False
+
+        digit = ""
+        if pygame.K_1 <= event.key <= pygame.K_9:
+            digit = chr(ord("1") + (event.key - pygame.K_1))
+        elif event.unicode in "123456789":
+            digit = event.unicode
+
+        if not digit:
+            return False
+
+        self._code_buf = (self._code_buf + digit)[-12:]
+        for length in range(4, len(self._code_buf) + 1):
+            candidate = self._code_buf[-length:]
+            if hashlib.sha256(candidate.encode("utf-8")).hexdigest() == DEV_SPEED_HASH:
+                self.dev_unlocked = True
+                self._code_buf = ""
+                if "time_scale" not in self.rows:
+                    self.rows.insert(self.rows.index("back"), "time_scale")
+                self.cursor = self.rows.index("time_scale")
+                sound.play("evolve")
+                return True
+        return True
 
     def _cycle_option(self, delta: int) -> None:
         key = self.rows[self.cursor]
@@ -459,13 +496,17 @@ class SettingsScene:
             self.config["sky_mode"] = modes[(idx + delta) % len(modes)]
             sound.play("click")
             sound.set_mood("somber" if sound.is_night_time(self.config) else "day")
-        elif key == "time_scale":
+        elif key == "time_scale" and self.dev_unlocked:
             scales = [1.0, 10.0, 60.0]
             cur = float(self.config.get("time_scale", 1.0))
             idx = scales.index(cur) if cur in scales else 0
             self.config["time_scale"] = scales[(idx + delta) % len(scales)]
             sound.play("click")
-        save_config(self.config)
+
+        # Persist 1x Normal to disk so dev speed stays strictly session-only
+        persisted = dict(self.config)
+        persisted["time_scale"] = 1.0
+        save_config(persisted)
 
     def _value_label(self, key: str) -> str:
         if key in ("sfx", "music"):
@@ -492,6 +533,8 @@ class SettingsScene:
 
     def handle_event(self, event: pygame.event.Event) -> tuple[str, dict] | None:
         if event.type != pygame.KEYDOWN:
+            return None
+        if self._try_unlock_dev_speed(event):
             return None
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
             sound.play("back")
@@ -558,4 +601,4 @@ class SettingsScene:
                 val_s = self.fonts["mono"].render(val_txt, True, val_col)
                 canvas.blit(val_s, (rect.right - val_s.get_width() - 10, ry + (17 - val_s.get_height()) // 2))
 
-        _draw_footer(canvas, self.fonts["sans"], "↑/↓:Row  ←/→:Change  Esc:Back")
+        _draw_footer(canvas, self.fonts["sans"], "?/?:Row  ?/?:Change  Esc:Back")

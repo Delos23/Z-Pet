@@ -202,7 +202,7 @@ Pets level up from **Lv. 1 to Lv. 30**, evolving automatically when awake at **L
   * **Music:** `OFF`, `LOW`, `MED`, or `HIGH` *(scales live without restarting the track; independent of Sound FX)*.
   * **Clock Format:** `12-Hour` or `24-Hour`.
   * **Window Sky:** `Auto` (real clock), `Dawn`, `Day`, `Sunset`, or `Night` *(also switches Day/Somber music immediately)*.
-  * **Game Speed:** `1x Normal`, `10x Fast`, or `60x Test`.
+ 
 
 ---
 
@@ -217,7 +217,7 @@ chmod +x deploy/install_launcher.sh deploy/run_zpet.sh
 ```
 Launch **Z-Pet** directly from **APPLaunch**. Z-Pet renders natively to `/dev/fb_lcd` (even if HDMI is connected), outputs 48 kHz mono audio through PipeWire, and stores persistent data in `~/.config/z-pet/`:
 * `save.json` — Active pet state, Battle Arena win streaks, Boss wins, and 48-hour survival tracking.
-* `config.json` — User preferences (`sfx`, `music`, clock format, sky mode, and game speed).
+* `config.json` — User preferences (`sfx`, `music`, clock format, and sky mode).
 * `guide.json` — Permanent 35-species discovery progress.
 * `launch.log` — Startup diagnostics for `/dev/fb_lcd`, PipeWire audio, and active BGM tracks.
 

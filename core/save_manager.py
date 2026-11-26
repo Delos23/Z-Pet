@@ -84,6 +84,7 @@ def record_discovery(species_id: str) -> bool:
 def load_config() -> dict:
     cfg = dict(DEFAULT_CONFIG)
     if not CONFIG_FILE.exists():
+        cfg["time_scale"] = 1.0
         return cfg
 
     try:
@@ -97,11 +98,10 @@ def load_config() -> dict:
             sky = str(raw.get("sky_mode", cfg["sky_mode"]))
             if sky in ("auto", "dawn", "day", "sunset", "night"):
                 cfg["sky_mode"] = sky
-            scale = float(raw.get("time_scale", cfg["time_scale"]))
-            if scale in (1.0, 10.0, 60.0):
-                cfg["time_scale"] = scale
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError):
         pass
+
+    cfg["time_scale"] = 1.0
     return cfg
 
 
