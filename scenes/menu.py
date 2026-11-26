@@ -3,8 +3,9 @@
 import math
 import random
 import pygame
-
+import hashlib
 import settings
+
 from core.animator import PET_COLOR_ORDER, PET_COLOR_PALETTES, load_species_animations
 from core import sound
 from core.species import get_personality, get_species, get_starter_ids
@@ -423,7 +424,7 @@ class NewPetScene:
 
 import hashlib
 
-# SHA-256 hash of private 4-12 digit code (digits 1-9) to reveal Game Speed
+# SHA-256 hash of your private 4-12 digit code (digits 1-9) to reveal Game Speed
 DEV_SPEED_HASH = "a6e0f1a76758711ecc0404d508d188f3d05e40247fda62936f10624934d34d43"
 
 
@@ -503,7 +504,7 @@ class SettingsScene:
             self.config["time_scale"] = scales[(idx + delta) % len(scales)]
             sound.play("click")
 
-        # Persist 1x Normal to disk so dev speed stays strictly session-only
+        # Always persist 1x Normal to disk so dev speed is strictly session-only
         persisted = dict(self.config)
         persisted["time_scale"] = 1.0
         save_config(persisted)
@@ -601,4 +602,4 @@ class SettingsScene:
                 val_s = self.fonts["mono"].render(val_txt, True, val_col)
                 canvas.blit(val_s, (rect.right - val_s.get_width() - 10, ry + (17 - val_s.get_height()) // 2))
 
-        _draw_footer(canvas, self.fonts["sans"], "?/?:Row  ?/?:Change  Esc:Back")
+        _draw_footer(canvas, self.fonts["sans"], "↑/↓:Row  ←/→:Change  Esc:Back")
