@@ -28,6 +28,7 @@ Z-Pet uses unified directional controls across menus, mini-games, battles, and t
 | **Back / Save & Menu / Quit** | `Esc` or `Q` |
 | **Open The Guide** *(from Status screen)* | `G` |
 | **Switch Guide Tabs** | `←` / `→`, `Tab`, or `1` / `2` / `3` |
+| **Speaker Volume Up / Down / Mute** *(Cardputer Zero)* | `fn + D` / `fn + S` / `fn + A` |
 | **Take `320×170` Screenshot** | `0` *(Cardputer Zero)* or `F12` *(PC)* |
 
 > **Tip when naming a New Pet:** While the **Name** field is selected, `F`, `X`, `Z`, and `C` type letters normally—use the physical arrow keys or `Tab` to switch rows. Leave the name blank and press `Enter` to keep the starter's default name.
@@ -72,14 +73,19 @@ Slide across the dock with **`←` / `→`** (`Z` / `C`) and press **`Enter` / `
 | **Dumbbell** | **Train** | Opens **Teach** timing drills to permanently raise battle stats. |
 | **Crossed Swords** | **Battle** | Enters the turn-based **Battle Arena** against wild Z-Pets and Elite Bosses. |
 | **Soap Bubbles** | **Clean** | Sweeps away floor messes, restores Cleanliness to `100%`, and awards XP. |
-| **Moon / Sun** | **Bed / Wake** | Walks your pet to bed, tucks them under the covers, dims the floor lamp, and crossfades to somber lullaby music. Recharges Energy at `1.25%/min` (~80 min full rest). Swaps to a **Sun** icon while asleep. |
+| **Moon / Sun** | **Bed / Wake** | Walks your pet to bed, tucks them under the covers, dims the floor lamp, and switches to somber lullaby music. Recharges Energy at `1.25%/min` (~80 min full rest). Swaps to a **Sun** icon while asleep. |
 | **Heart** | **Hug** | Gives pets & affection (`+6` Happiness; `+3` Bond & XP every 6 seconds). |
 | **Bar Chart** | **Status** | Opens the **Pet Status** profile (XP bar, battle stats, Arena records, Care Path forecast, and `[G]` shortcut to **The Guide**). |
 
 ### Bedroom Details
 * **Clock-Synced Window:** Displays **Dawn**, **Day** (drifting clouds), **Sunset**, or **Night** (twinkling stars & moon) synced to your real-time clock—or locked to any preset in **Settings**.
 * **Standing Floor Lamp:** Glows warmly while awake and switches off automatically as the room dims for bedtime.
-* **Shelf Trophy:** Turns gleaming gold and sparkles once you record a **Star Catch** high score.
+* **Star Catch Trophy:** Turns gleaming gold and sparkles on the wall shelf once you record a **Star Catch** high score.
+* **Boss Crown Trophy:** Unlocks on the right side of the bedroom shelf once your pet defeats at least one **Elite Boss** (`BOSS >= 1`). Features a sweeping golden glint, animated pixel sparkles, and a center jewel that upgrades with your lifetime Boss wins:
+  * **1 Win (Alpha):** Crimson ruby
+  * **2 Wins (Apex):** Ice cyan
+  * **3 Wins (Titan):** Royal purple
+  * **4+ Wins (Mythic):** Prismatic diamond-lavender
 * **Thought Bubbles:** Pop up beside your pet whenever Hunger, Cleanliness, Energy, or Happiness runs low.
 
 ---
@@ -98,7 +104,7 @@ Open the **Status** icon (Bar Chart) to inspect your pet's RPG profile, Arena re
 | **`BND`** | **Bond** — Affection score built through daily care, play, training, and victories (also boosts Bond-scaled healing skills). |
 | **`MST`** | **Care Mistakes** — Logged per hour of severe neglect (`< 15%` stat or 3+ floor messes). |
 | **`TRN`** | **Daily Drills Remaining** — Remaining Teach sessions today (`3/3` max, resets at midnight). |
-| **`BOSS`** | **Elite Boss Wins** — Total 5-win Boss Challenges defeated. |
+| **`BOSS`** | **Elite Boss Wins** — Total 5-win Boss Challenges defeated (also unlocks and upgrades the **Boss Crown** shelf trophy). |
 | **`BEST`** | **Best Win Streak** — Highest consecutive Battle Arena win streak reached. |
 | **`W`** | **Total Wins** — Lifetime Battle Arena victories. |
 | **`Skill`** | Your pet's active species signature ability (all 35 species have a unique battle skill). |
@@ -127,7 +133,7 @@ Reaching a **4-win streak** flashes a **`NEXT: ELITE BOSS!`** warning—every 5t
 | **TITAN** | Fight #15 | Player Lv. `+2`, `+22%` stats, **`1.35×` Max HP**, starts with **`2 SP`** | Same Boss Bonus scaling with higher streak XP |
 | **MYTHIC** | Fight #20+ | Player Lv. `+2`–`+3`, up to `+30%` stats, **`1.35×` Max HP**, **`2 SP`** | Same Boss Bonus scaling with higher streak XP |
 
-Elite Bosses wear a **pixel crown badge** with a pulsing aura, read your `2 SP` charge to Guard defensively, and use their signature skills aggressively. Defeating one permanently boosts a random non-maxed battle stat (`ATK`, `DEF`, `SPD`, or `INT`) by **`+2`**.
+Elite Bosses wear a **pixel crown badge** with a pulsing aura, read your `2 SP` charge to Guard defensively, and use their signature skills aggressively. Defeating one permanently boosts a random non-maxed battle stat (`ATK`, `DEF`, `SPD`, or `INT`) by **`+2`** and unlocks/upgrades the **Boss Crown** trophy on your bedroom shelf.
 
 ### Star Catch (`Play`)
 A 20-second arcade mini-game: move left and right to catch falling **Gold Stars** (`+1`) and rare **Pink Mega-Stars** (`+3`) while dodging **Storm Bolts** (`-1` & brief stun). Reaching a **5+ catch combo** adds `+1` bonus point per star, and scoring **12+ points** awards a permanent **`+1 SPD`** bonus.
@@ -139,19 +145,20 @@ Choose **ATK**, **DEF**, **SPD**, or **INT** and complete a 3-round timing-bar c
 
 ## Procedural 8-Bit Audio & Soundtrack
 
-Z-Pet includes a zero-asset chiptune audio engine (`core/sound.py`) synthesized directly in memory with Python's `math` and `array` modules plus `pygame.mixer`—no `.wav` or `.ogg` files required, and audio degrades silently if no sound hardware is present.
+Z-Pet includes a zero-asset band-limited wavetable chiptune engine (`core/sound.py`) synthesized directly in memory with Python's `math` and `array` modules plus `pygame.mixer`—no `.wav` or `.ogg` files required, tuned natively for the Cardputer Zero's **48 kHz single-channel (mono)** speaker via PipeWire, and degrading silently if no sound hardware is present.
 
-* **Isolated Channels:** Mixer Channel `0` is reserved for looping background music while Channels `1–7` handle sound effects, so muting either toggle leaves the other unaffected.
+* **4-Tier Independent Mix (`OFF` / `LOW` / `MED` / `HIGH`):** Mixer Channel `0` is reserved for background music while Channels `1–7` handle sound effects. Adjusting **Sound FX** or **Music** in **Settings** scales channel volume live (`0%` / `28%` / `60%` / `100%`) without restarting the active track or affecting the other channel.
+* **Cardputer Zero Hardware Volume Keys:** Press **`fn + D`** (Volume Up), **`fn + S`** (Volume Down), or **`fn + A`** (Mute) from any screen to adjust the live PipeWire speaker volume in `5%` steps via `wpctl` without leaving the game. A compact **`VOL ##%` / `MUTED`** bar pops up at the top of the screen for 1.8 seconds and auto-unmutes when raising volume.
 * **Retro Sound Effects (`Sound FX`):** Covers UI navigation (`click`, `select`, `back`, `error`), every care action (`feed`, `treat`, `clean`, `hug`, `sleep`, `wake`), Star Catch cues (`catch`, `mega_catch`, `combo`, `bolt`), Teach timing hits (`drill_perfect`, `drill_good`, `drill_miss`), full Battle Arena feedback (`hit`, `crit`, `skill`, `guard`, `dodge`, `heal`, `boss` intro, `victory`, `defeat`), plus `level_up` and `evolve` fanfares.
-* **Multi-Section Mood Playlists (`Music`):** Full 48–64 beat arrangements (`A → B → A' → C`) with harmony arpeggios and 8-bit percussion, synthesized on a background thread and cached for stutter-free transitions on Cardputer Zero:
+* **Multi-Section Mood Playlists (`Music`):** Full 48–64 beat arrangements (`A → B → A' → C`) with harmony arpeggios and 8-bit percussion, built section-by-section on a background thread and queued gaplessly for stutter-free playback on Cardputer Zero:
 
 | Mood Playlist | Active Scenes | Shuffled Tracks & Vibe |
 | :--- | :--- | :--- |
 | **`day`** | Menus, Status, Guide & Bedroom (Awake / Daytime) | 3 cozy chiptune songs (~32–34s each) that flow seamlessly across menus and the bedroom without restarting. |
-| **`somber`** | Menus & Bedroom (Sleeping, Fainted, or Nighttime `8 PM–5 AM` / `Night` sky) | 2 slow minor-key music-box lullabies (~44–46s each) that crossfade in automatically at bedtime or night. |
+| **`somber`** | Menus & Bedroom (Sleeping, Fainted, or Nighttime `8 PM–5 AM` / `Night` sky) | 2 slow minor-key music-box bell lullabies (~44–46s each) that switch in automatically at bedtime or night. |
 | **`minigame`** | Star Catch & Teach Drills | 2 upbeat arcade synth tracks (~26–27s each) with retro drums. |
 | **`battle`** | Battle Arena (Wild Fights) | 2 driving RPG combat tracks (~26–27s each). |
-| **`boss`** | Battle Arena (Elite Boss Challenges) | 4-phase high-tension boss rush theme (~24s loop). |
+| **`boss`** | Battle Arena (Elite Boss Challenges) | 4-phase high-tension boss rush theme (~24s gapless loop). |
 
 ---
 
@@ -191,8 +198,8 @@ Pets level up from **Lv. 1 to Lv. 30**, evolving automatically when awake at **L
 
 * **The Guide** *(Start-Up Menu or `[G]` in Status)*: Tracks all **35 species** permanently in `guide.json` across new playthroughs (showing silhouettes and unlock hints for undiscovered forms), plus quick-reference tabs for **Traits** and **Care** rules.
 * **Settings** *(saved in `config.json`)*:
-  * **Sound FX:** `ON` or `OFF` *(independent of Music)*.
-  * **Music:** `ON` or `OFF` *(independent of Sound FX)*.
+  * **Sound FX:** `OFF`, `LOW`, `MED`, or `HIGH` *(plays a preview chime at each level; independent of Music)*.
+  * **Music:** `OFF`, `LOW`, `MED`, or `HIGH` *(scales live without restarting the track; independent of Sound FX)*.
   * **Clock Format:** `12-Hour` or `24-Hour`.
   * **Window Sky:** `Auto` (real clock), `Dawn`, `Day`, `Sunset`, or `Night` *(also switches Day/Somber music immediately)*.
   * **Game Speed:** `1x Normal`, `10x Fast`, or `60x Test`.
@@ -208,12 +215,13 @@ cd ~/z-pet
 chmod +x deploy/install_launcher.sh deploy/run_zpet.sh
 ./deploy/install_launcher.sh
 ```
-Launch **Z-Pet** directly from **APPLaunch**. Z-Pet renders natively to `/dev/fb_lcd` (even if HDMI is connected) and stores persistent data in `~/.config/z-pet/`:
+Launch **Z-Pet** directly from **APPLaunch**. Z-Pet renders natively to `/dev/fb_lcd` (even if HDMI is connected), outputs 48 kHz mono audio through PipeWire, and stores persistent data in `~/.config/z-pet/`:
 * `save.json` — Active pet state, Battle Arena win streaks, Boss wins, and 48-hour survival tracking.
 * `config.json` — User preferences (`sfx`, `music`, clock format, sky mode, and game speed).
 * `guide.json` — Permanent 35-species discovery progress.
+* `launch.log` — Startup diagnostics for `/dev/fb_lcd`, PipeWire audio, and active BGM tracks.
 
-> **Audio Note on Cardputer Zero:** If the built-in speaker is silent with `Sound FX` and `Music` turned `ON`, run `alsamixer`, press `M` to unmute playback if `[MM]` is shown, raise the volume, and save with `sudo alsactl store`.
+> **Audio Note on Cardputer Zero:** Use **`fn + D`** / **`fn + S`** / **`fn + A`** inside Z-Pet to control the built-in speaker directly. If the speaker is still silent over SSH, check `wpctl get-volume @DEFAULT_AUDIO_SINK@` and unmute/raise with `wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.65`.
 
 ### On Windows / Linux PC (Development Preview)
 ```bash
