@@ -1,9 +1,11 @@
-"""Combat math, wild rival generator, and all 35 species ability definitions."""
+"""Combat math, wild & elite boss rival generators, and all 35 species ability definitions."""
 
 import random
 
 from core.animator import PET_COLOR_ORDER
 from core.species import get_species, load_species_db
+
+BOSS_TITLES = ("ALPHA", "APEX", "TITAN", "MYTHIC")
 
 # Maps every ability.id in data/species.json to concrete battle behavior
 ABILITY_EFFECTS: dict[str, dict] = {
@@ -50,6 +52,11 @@ ABILITY_EFFECTS: dict[str, dict] = {
 }
 
 
+def is_boss_fight(win_streak: int) -> bool:
+    """Returns True when the next fight is the 5th, 10th, 15th... on a streak."""
+    return win_streak > 0 and (win_streak + 1) % 5 == 0
+
+
 def calc_max_hp(level: int, def_stat: int) -> int:
     return 55 + level * 8 + int(def_stat) * 2
 
@@ -79,6 +86,9 @@ def make_fighter_from_pet(pet) -> dict:
         "color": pet.color,
         "level": pet.level,
         "bond": pet.bond,
+        "is_boss": False,
+        "boss_tier": 0,
+        "boss_title": "",
         "stats": stats,
         "max_hp": max_hp,
         "hp": max_hp,
@@ -99,36 +109,57 @@ def make_fighter_from_pet(pet) -> dict:
     }
 
 
-def spawn_wild_rival(player_level: int, exclude_species: str = "") -> dict:
-    """Generates a level-appropriate wild Z-Pet opponent (Baby / Teen / Adult)."""
+def spawn_wild_rival(
+    player_level: int,
+    exclude_species: str = "",
+    is_boss: bool = False,
+    streak: int = 0,
+) -> dict:
+    """Generates a level-appropriate wild Z-Pet or an Elite Boss on every 5th streak fight."""
     db = load_species_db()
-    rival_lvl = max(1, min(30, player_level + random.choice((-1, 0, 0, 1))))
 
-    if rival_lvl < 10:
-        stage = "baby"
-    elif rival_lvl < 20:
-        stage = "teen"
+    if is_boss:
+        boss_tier = max(1, (streak + 1) // 5)
+        rival_lvl = max(2, min(30, player_level + 1 + min(2, (boss_tier - 1) // 2)))
+        if rival_lvl < 8:
+            stage = "baby"
+        elif rival_lvl < 18:
+            stage = "teen"
+        else:
+            stage = "adult"
     else:
-        stage = "adult"
+        boss_tier = 0
+        rival_lvl = max(1, min(30, player_level + random.choice((-1, 0, 0, 1))))
+        if rival_lvl < 10:
+            stage = "baby"
+        elif rival_lvl < 20:
+            stage = "teen"
+        else:
+            stage = "adult"
 
     pool = [sid for sid, info in db.items() if info.get("stage") == stage]
     non_mirror = [sid for sid in pool if sid != exclude_species]
     species_id = random.choice(non_mirror or pool)
     sp = db[species_id]
 
-    # Scale rival stats smoothly with level (slightly softer than a trained player pet)
     base = sp["base_stats"]
     growth = sp["growth"]
     stage_offset = 0 if stage == "baby" else (9 if stage == "teen" else 19)
     lvl_steps = max(0, rival_lvl - 1 - stage_offset)
 
+    # Elite Bosses get tougher stats scaling with Boss Tier (capped at 150)
+    boss_stat_mult = min(1.30, 1.16 + (boss_tier - 1) * 0.03) if is_boss else 1.0
+
     stats = {}
     for k in ("atk", "def", "spd", "int"):
         raw = base[k] + int(lvl_steps * growth[k] * 0.85) + (stage_offset * 1.15)
-        stats[k] = max(5, min(145, int(raw * random.uniform(0.92, 1.05))))
+        jitter = random.uniform(0.98, 1.06) if is_boss else random.uniform(0.92, 1.05)
+        stats[k] = max(5, min(150, int(raw * jitter * boss_stat_mult)))
 
     ab_id, ab_name, ab_desc, ab_fx = get_ability_spec(species_id)
-    max_hp = calc_max_hp(rival_lvl, stats["def"])
+    base_hp = calc_max_hp(rival_lvl, stats["def"])
+    max_hp = int(base_hp * 1.35) if is_boss else base_hp
+    boss_title = BOSS_TITLES[min(len(BOSS_TITLES) - 1, boss_tier - 1)] if is_boss else ""
 
     return {
         "name": sp["name"].upper(),
@@ -136,10 +167,13 @@ def spawn_wild_rival(player_level: int, exclude_species: str = "") -> dict:
         "color": random.choice(PET_COLOR_ORDER),
         "level": rival_lvl,
         "bond": 0,
+        "is_boss": is_boss,
+        "boss_tier": boss_tier,
+        "boss_title": boss_title,
         "stats": stats,
         "max_hp": max_hp,
         "hp": max_hp,
-        "sp": 1,
+        "sp": 2 if is_boss else 1,
         "max_sp": 3,
         "ability_id": ab_id,
         "ability_name": ab_name,
@@ -203,7 +237,6 @@ def resolve_action(attacker: dict, defender: dict, action: str) -> dict:
     else:
         attacker["sp"] = min(attacker["max_sp"], attacker["sp"] + 1)
 
-    # Dodge check (SPD advantage gives up to 18% evade; priority/pierce skills are harder to dodge)
     dodge_chance = max(0.0, (def_spd - atk_spd) * 0.004)
     dodge_chance = min(0.18, dodge_chance)
     if fx.get("priority") or fx.get("pierce"):
@@ -215,7 +248,6 @@ def resolve_action(attacker: dict, defender: dict, action: str) -> dict:
         result["message"] = f"{defender['name']} dodged {move_name}!"
         return result
 
-    # Choose offensive stat
     stat_kind = fx.get("stat", "atk")
     if stat_kind == "hybrid":
         off_val = (effective_stat(attacker, "atk") + int_val) * 0.62
@@ -233,7 +265,6 @@ def resolve_action(attacker: dict, defender: dict, action: str) -> dict:
     if fx.get("revenge") and attacker["took_hit_last"]:
         power *= 1.35
 
-    # INT subtly amplifies all signature skills
     if is_skill:
         power *= 1.0 + min(0.35, int_val * 0.0025)
 
@@ -260,14 +291,12 @@ def resolve_action(attacker: dict, defender: dict, action: str) -> dict:
     defender["took_hit_last"] = True
     result["damage"] = total_dmg
 
-    # Reflect shield check
     if defender["reflect"] and total_dmg > 0:
         ref_dmg = max(3, int(total_dmg * 0.30))
         attacker["hp"] = max(0, attacker["hp"] - ref_dmg)
         result["reflected"] = ref_dmg
         defender["reflect"] = False
 
-    # Secondary skill effects (heals, lifesteal, buffs, debuffs, DoTs)
     if is_skill:
         if fx.get("drain"):
             heal_amt = max(2, int(total_dmg * float(fx["drain"])))
@@ -302,7 +331,6 @@ def resolve_action(attacker: dict, defender: dict, action: str) -> dict:
             defender["dot_turns"] = max(defender["dot_turns"], int(fx["thorns"]))
             defender["dot_label"] = "Thorns"
 
-        # High INT grants up to 30% chance to refund 1 SP ("Clever Cast")
         if random.random() < min(0.30, int_val * 0.0022):
             attacker["sp"] = min(attacker["max_sp"], attacker["sp"] + 1)
             result["sp_refund"] = True

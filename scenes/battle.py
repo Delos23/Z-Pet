@@ -1,4 +1,4 @@
-"""Turn-based Battle Arena scene for Z-Pet (320x170)."""
+"""Turn-based Battle Arena scene for Z-Pet with Elite Boss challenges every 5th streak fight."""
 
 import math
 import random
@@ -7,6 +7,7 @@ import pygame
 import settings
 from core.abilities import (
     effective_stat,
+    is_boss_fight,
     make_fighter_from_pet,
     resolve_action,
     spawn_wild_rival,
@@ -28,6 +29,11 @@ SLOT_BORDER = (72, 54, 108)
 DISABLED_COL = (100, 90, 128)
 CYAN_COL = (126, 206, 255)
 
+BOSS_BG = (34, 14, 38)
+BOSS_PANEL = (54, 22, 58)
+BOSS_GOLD = (255, 208, 74)
+BOSS_CRIMSON = (232, 72, 102)
+
 COMMANDS = [
     ("strike", "Strike"),
     ("skill",  "Skill"),
@@ -36,8 +42,31 @@ COMMANDS = [
 ]
 
 
+def draw_boss_crown(surf: pygame.Surface, x: int, y: int) -> None:
+    """Draws a crisp 9x7 pixel-art gold crown for Elite Boss badges."""
+    gold = BOSS_GOLD
+    hi = (255, 248, 190)
+    gem = BOSS_CRIMSON
+    pattern = [
+        "#...#...#",
+        "##.###.##",
+        "#########",
+        "#.G###G.#",
+        "#########",
+        ".HHHHHHH.",
+    ]
+    for r, row in enumerate(pattern):
+        for c, ch in enumerate(row):
+            if ch == "#":
+                surf.set_at((x + c, y + r), gold)
+            elif ch == "H":
+                surf.set_at((x + c, y + r), hi)
+            elif ch == "G":
+                surf.set_at((x + c, y + r), gem)
+
+
 class BattleScene:
-    """Turn-based arena pitting the player's Z-Pet against scaled wild Z-Pets."""
+    """Turn-based arena pitting the player's Z-Pet against wild Z-Pets & Elite Bosses."""
 
     accepts_text_input = False
 
@@ -58,7 +87,13 @@ class BattleScene:
 
     def _start_match(self) -> None:
         self.player = make_fighter_from_pet(self.pet)
-        self.rival = spawn_wild_rival(self.pet.level, exclude_species=self.pet.species_id)
+        self.is_boss = is_boss_fight(self.pet.win_streak)
+        self.rival = spawn_wild_rival(
+            self.pet.level,
+            exclude_species=self.pet.species_id,
+            is_boss=self.is_boss,
+            streak=self.pet.win_streak,
+        )
 
         self.player_anim = load_species_animations(
             settings.SPRITES_DIR / self.player["species_id"],
@@ -84,9 +119,15 @@ class BattleScene:
         self.cmd_idx = 0
         self.turn_queue: list[tuple[str, str]] = []
         self.step_timer = 0.0
-        self.log_text = f"Wild {self.rival['name']} Lv.{self.rival['level']} appeared!"
-        self.result_info: dict | None = None
 
+        if self.is_boss:
+            self.log_text = (
+                f"ELITE {self.rival['boss_title']} {self.rival['name']} Lv.{self.rival['level']}!"
+            )
+        else:
+            self.log_text = f"Wild {self.rival['name']} Lv.{self.rival['level']} appeared!"
+
+        self.result_info: dict | None = None
         self.p_lunge = 0.0
         self.r_lunge = 0.0
         self.p_shake = 0.0
@@ -97,6 +138,17 @@ class BattleScene:
         self.popups.append({"text": text, "x": x, "y": y, "color": color, "life": 0.95})
 
     def _pick_rival_action(self) -> str:
+        if self.is_boss:
+            if self.rival["sp"] >= 2 and random.random() < 0.85:
+                return "skill"
+            if (
+                self.rival["hp"] < self.rival["max_hp"] * 0.45
+                and self.player["sp"] >= 2
+                and random.random() < 0.35
+            ):
+                return "guard"
+            return "strike"
+
         if self.rival["sp"] >= 2 and random.random() < 0.75:
             return "skill"
         if self.rival["hp"] < self.rival["max_hp"] * 0.35 and random.random() < 0.35:
@@ -201,12 +253,22 @@ class BattleScene:
 
     def _finish_battle(self) -> None:
         won = self.rival["hp"] <= 0 and self.player["hp"] > 0
-        self.result_info = self.pet.complete_battle(won=won, enemy_level=self.rival["level"])
+        self.result_info = self.pet.complete_battle(
+            won=won,
+            enemy_level=self.rival["level"],
+            is_boss=self.is_boss,
+        )
         save_pet(self.pet)
         self.phase = "result"
         if won:
             self.player_anim.play("happy", restart=True, next_anim="idle")
-            self.last_toast = f"Won vs {self.rival['name']}! +{self.result_info['xp_gain']} XP"
+            if self.is_boss and self.result_info.get("stat_reward"):
+                st_k, st_v = self.result_info["stat_reward"]
+                self.last_toast = f"Boss down! +{self.result_info['xp_gain']} XP +{st_v} {st_k.upper()}"
+            elif self.is_boss:
+                self.last_toast = f"Boss down! +{self.result_info['xp_gain']} XP"
+            else:
+                self.last_toast = f"Won vs {self.rival['name']}! +{self.result_info['xp_gain']} XP"
         else:
             self.last_toast = f"Tough fight! +{self.result_info['xp_gain']} XP"
 
@@ -277,66 +339,111 @@ class BattleScene:
                 self._run_next_step()
 
     def _draw_fighter_hud(self, canvas: pygame.Surface, f: dict, x: int, y: int, w: int) -> None:
+        boss_card = bool(f.get("is_boss"))
         rect = pygame.Rect(x, y, w, 28)
-        pygame.draw.rect(canvas, settings.COLOR_PANEL, rect, border_radius=4)
-        pygame.draw.rect(canvas, settings.COLOR_ACCENT, rect, 1, border_radius=4)
+        pygame.draw.rect(canvas, BOSS_PANEL if boss_card else settings.COLOR_PANEL, rect, border_radius=4)
+        pygame.draw.rect(canvas, BOSS_GOLD if boss_card else settings.COLOR_ACCENT, rect, 1, border_radius=4)
 
-        name_s = self.fonts["sans"].render(f"{f['name'][:8]} L{f['level']}", True, settings.COLOR_TEXT)
-        canvas.blit(name_s, (x + 5, y + 2))
+        if boss_card:
+            draw_boss_crown(canvas, x + 4, y + 4)
+            name_x = x + 15
+            name_txt = f"{f['name'][:6]} L{f['level']}"
+            name_col = BOSS_GOLD
+        else:
+            name_x = x + 5
+            name_txt = f"{f['name'][:8]} L{f['level']}"
+            name_col = settings.COLOR_TEXT
+
+        name_s = self.fonts["sans"].render(name_txt, True, name_col)
+        canvas.blit(name_s, (name_x, y + 2))
 
         hp_txt = f"{f['hp']}/{f['max_hp']}"
         hp_s = self.fonts["mono"].render(hp_txt, True, settings.COLOR_MUTED)
         canvas.blit(hp_s, (x + w - hp_s.get_width() - 5, y + 2))
 
-        # HP bar
         ratio = f["hp"] / max(1, f["max_hp"])
         col = HP_GOOD if ratio >= 0.5 else (HP_WARN if ratio >= 0.25 else HP_LOW)
         bar_x, bar_y, bar_w, bar_h = x + 5, y + 16, w - 42, 7
         pygame.draw.rect(canvas, BAR_BG, (bar_x, bar_y, bar_w, bar_h))
         if ratio > 0:
             pygame.draw.rect(canvas, col, (bar_x, bar_y, max(2, int(bar_w * ratio)), bar_h))
-        pygame.draw.rect(canvas, settings.COLOR_ACCENT, (bar_x, bar_y, bar_w, bar_h), 1)
+        pygame.draw.rect(canvas, BOSS_GOLD if boss_card else settings.COLOR_ACCENT, (bar_x, bar_y, bar_w, bar_h), 1)
 
-        # 3 SP pips on the right of the HP bar
         for i in range(f["max_sp"]):
             px = x + w - 31 + i * 9
             py = y + 16
             pygame.draw.rect(canvas, SP_ON if i < f["sp"] else SP_OFF, (px, py, 6, 7), border_radius=1)
 
     def render(self, canvas: pygame.Surface) -> None:
-        canvas.fill((22, 16, 40))
+        canvas.fill(BOSS_BG if self.is_boss else (22, 16, 40))
 
-        # Twinkling arena sky
+        # Twinkling arena sky (ember-gold stars during Boss challenges)
         for sx, sy, phase in self.stars:
-            col = (210, 200, 245) if math.sin(self.elapsed * 2.4 + phase) > 0.35 else (90, 76, 134)
+            bright = math.sin(self.elapsed * 2.6 + phase) > 0.35
+            if self.is_boss:
+                col = BOSS_GOLD if bright else (122, 54, 88)
+            else:
+                col = (210, 200, 245) if bright else (90, 76, 134)
             canvas.fill(col, (sx, sy, 1, 1))
 
         # Arena floor & battle pads
-        pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 108, settings.LOGICAL_WIDTH, 18))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 108), (settings.LOGICAL_WIDTH, 108), 1)
+        floor_col = (56, 26, 58) if self.is_boss else settings.COLOR_FLOOR
+        line_col = BOSS_GOLD if self.is_boss else settings.COLOR_ACCENT
+        pygame.draw.rect(canvas, floor_col, (0, 108, settings.LOGICAL_WIDTH, 18))
+        pygame.draw.line(canvas, line_col, (0, 108), (settings.LOGICAL_WIDTH, 108), 1)
         pygame.draw.ellipse(canvas, (76, 52, 118), (30, 112, 76, 11))
-        pygame.draw.ellipse(canvas, (76, 52, 118), (214, 112, 76, 11))
+
+        if self.is_boss:
+            pygame.draw.ellipse(canvas, (118, 36, 62), (210, 111, 84, 13))
+            pygame.draw.ellipse(canvas, BOSS_GOLD, (210, 111, 84, 13), 1)
+        else:
+            pygame.draw.ellipse(canvas, (76, 52, 118), (214, 112, 76, 11))
 
         # Top header
-        pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 22))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 22), (settings.LOGICAL_WIDTH, 22), 1)
-        canvas.blit(self.fonts["sans"].render("BATTLE ARENA", True, SP_ON), (8, 3))
-        st_s = self.fonts["mono"].render(
-            f"STRK:{self.pet.win_streak}  W:{self.pet.battle_wins}", True, CYAN_COL
-        )
+        pygame.draw.rect(canvas, BOSS_PANEL if self.is_boss else settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 22))
+        pygame.draw.line(canvas, line_col, (0, 22), (settings.LOGICAL_WIDTH, 22), 1)
+
+        if self.is_boss:
+            draw_boss_crown(canvas, 7, 7)
+            canvas.blit(self.fonts["sans"].render("BOSS CHALLENGE", True, BOSS_GOLD), (20, 3))
+            st_s = self.fonts["mono"].render(
+                f"T{self.rival['boss_tier']} STRK:{self.pet.win_streak}", True, BOSS_CRIMSON
+            )
+        else:
+            canvas.blit(self.fonts["sans"].render("BATTLE ARENA", True, SP_ON), (8, 3))
+            st_s = self.fonts["mono"].render(
+                f"STRK:{self.pet.win_streak}  W:{self.pet.battle_wins}", True, CYAN_COL
+            )
         canvas.blit(st_s, (settings.LOGICAL_WIDTH - st_s.get_width() - 8, 3))
 
         # Fighter HP & SP cards
         self._draw_fighter_hud(canvas, self.player, 6, 26, 150)
         self._draw_fighter_hud(canvas, self.rival, 164, 26, 150)
 
-        # Fighter sprites with lunge & hit-shake offsets
+        # Center Elite Boss tier badge in open mid-arena space
+        if self.is_boss and self.phase != "result":
+            badge_txt = f"ELITE {self.rival['boss_title']}"
+            b_surf = self.fonts["mono"].render(badge_txt, True, BOSS_GOLD)
+            bw = b_surf.get_width() + 14
+            bx = (settings.LOGICAL_WIDTH - bw) // 2
+            by = 58
+            pygame.draw.rect(canvas, (76, 22, 46), (bx, by, bw, 16), border_radius=4)
+            pygame.draw.rect(canvas, BOSS_GOLD, (bx, by, bw, 16), 1, border_radius=4)
+            canvas.blit(b_surf, (bx + 7, by + 2))
+
+        # Fighter sprites with lunge, shake, and pulsing Boss aura
         p_dx = int(14 * (self.p_lunge / 0.22)) + (random.randint(-3, 3) if self.p_shake > 0 else 0)
         r_dx = -int(14 * (self.r_lunge / 0.22)) + (random.randint(-3, 3) if self.r_shake > 0 else 0)
 
         if self.player["hp"] > 0:
             canvas.blit(self.player_anim.get_frame(), (36 + p_dx, 56))
         if self.rival["hp"] > 0:
+            if self.is_boss:
+                aura_r = 25 + int(math.sin(self.elapsed * 5.0) * 3)
+                aura = pygame.Surface((68, 68), pygame.SRCALPHA)
+                pygame.draw.circle(aura, (255, 198, 72, 36), (34, 34), aura_r)
+                pygame.draw.circle(aura, (232, 72, 102, 54), (34, 34), max(8, aura_r - 7), 2)
+                canvas.blit(aura, (218 + r_dx, 54))
             canvas.blit(self.rival_anim.get_frame(), (220 + r_dx, 56))
 
         # Floating damage / heal popups
@@ -354,7 +461,7 @@ class BattleScene:
             info_col = SP_ON if self.player["sp"] >= 2 else HP_WARN
         else:
             info_txt = self.log_text
-            info_col = settings.COLOR_TEXT
+            info_col = BOSS_GOLD if (self.is_boss and self.phase == "choose") else settings.COLOR_TEXT
 
         log_s = self.fonts["sans"].render(info_txt, True, info_col)
         canvas.blit(log_s, ((settings.LOGICAL_WIDTH - log_s.get_width()) // 2, 129))
@@ -362,14 +469,25 @@ class BattleScene:
         # Victory / Defeat modal overlay
         if self.phase == "result" and self.result_info is not None:
             res = self.result_info
-            card = pygame.Rect(22, 28, 276, 114)
-            pygame.draw.rect(canvas, settings.COLOR_PANEL, card, border_radius=6)
-            border_col = SP_ON if res["won"] else HP_LOW
+            boss_win = res["won"] and res.get("is_boss")
+            card = pygame.Rect(18, 26, 284, 118)
+            pygame.draw.rect(canvas, BOSS_PANEL if boss_win else settings.COLOR_PANEL, card, border_radius=6)
+            border_col = BOSS_GOLD if res["won"] else HP_LOW
             pygame.draw.rect(canvas, border_col, card, 2, border_radius=6)
 
-            head = "VICTORY!" if res["won"] else "DEFEATED"
+            if boss_win:
+                head = "BOSS DEFEATED!"
+            elif res["won"]:
+                head = "VICTORY!"
+            else:
+                head = "DEFEATED"
+
             head_s = self.fonts["title"].render(head, True, border_col)
-            canvas.blit(head_s, ((settings.LOGICAL_WIDTH - head_s.get_width()) // 2, 34))
+            hx = (settings.LOGICAL_WIDTH - head_s.get_width()) // 2
+            canvas.blit(head_s, (hx, 31))
+            if boss_win:
+                draw_boss_crown(canvas, hx - 14, 38)
+                draw_boss_crown(canvas, hx + head_s.get_width() + 5, 38)
 
             if res.get("leveled_up"):
                 xp_line = f"LEVEL UP! Lv.{res['new_level']} (+{res['xp_gain']} XP)"
@@ -378,24 +496,36 @@ class BattleScene:
                 xp_line = f"+{res['xp_gain']} XP   +{res['bond_gain']} Bond"
                 xp_col = HP_GOOD
             xp_s = self.fonts["sans"].render(xp_line, True, xp_col)
-            canvas.blit(xp_s, ((settings.LOGICAL_WIDTH - xp_s.get_width()) // 2, 64))
+            canvas.blit(xp_s, ((settings.LOGICAL_WIDTH - xp_s.get_width()) // 2, 60))
+
+            if boss_win and res.get("stat_reward"):
+                st_k, st_v = res["stat_reward"]
+                bonus_s = self.fonts["mono"].render(f"BOSS BONUS: +{st_v} {st_k.upper()}!", True, BOSS_GOLD)
+                canvas.blit(bonus_s, ((settings.LOGICAL_WIDTH - bonus_s.get_width()) // 2, 79))
+                strk_y = 99
+            else:
+                strk_y = 84
 
             strk_s = self.fonts["mono"].render(
-                f"Streak: {res['win_streak']}   Best: {res['best_streak']}   Wins: {res['battle_wins']}",
+                f"Streak:{res['win_streak']}  Boss:{res['boss_wins']}  Wins:{res['battle_wins']}",
                 True,
                 CYAN_COL,
             )
-            canvas.blit(strk_s, ((settings.LOGICAL_WIDTH - strk_s.get_width()) // 2, 86))
+            canvas.blit(strk_s, ((settings.LOGICAL_WIDTH - strk_s.get_width()) // 2, strk_y))
 
-            eng_s = self.fonts["sans"].render(
-                f"Energy left: {int(self.pet.energy)}%", True, settings.COLOR_MUTED
-            )
-            canvas.blit(eng_s, ((settings.LOGICAL_WIDTH - eng_s.get_width()) // 2, 110))
+            if res["won"] and is_boss_fight(self.pet.win_streak):
+                next_txt = f"NEXT: ELITE BOSS! (EN:{int(self.pet.energy)}%)"
+                next_col = BOSS_GOLD if int(self.elapsed * 3) % 2 == 0 else BOSS_CRIMSON
+            else:
+                next_txt = f"Energy left: {int(self.pet.energy)}%"
+                next_col = settings.COLOR_MUTED
+            eng_s = self.fonts["sans"].render(next_txt, True, next_col)
+            canvas.blit(eng_s, ((settings.LOGICAL_WIDTH - eng_s.get_width()) // 2, 120))
 
         # Bottom command bar (4 buttons or result prompt)
         dock_y = 146
         pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, dock_y, settings.LOGICAL_WIDTH, 24))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, dock_y), (settings.LOGICAL_WIDTH, dock_y), 1)
+        pygame.draw.line(canvas, line_col, (0, dock_y), (settings.LOGICAL_WIDTH, dock_y), 1)
 
         if self.phase == "result":
             foot = self.fonts["sans"].render("Enter:Next Fight   Esc:Home", True, settings.COLOR_MUTED)
@@ -413,7 +543,7 @@ class BattleScene:
             pygame.draw.rect(canvas, SEL_FILL if selected else SLOT_BG, rect, border_radius=4)
             pygame.draw.rect(
                 canvas,
-                HP_GOOD if selected else SLOT_BORDER,
+                BOSS_GOLD if (selected and self.is_boss) else (HP_GOOD if selected else SLOT_BORDER),
                 rect,
                 1,
                 border_radius=4,

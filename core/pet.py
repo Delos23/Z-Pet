@@ -75,6 +75,7 @@ class Pet:
         self.battle_wins: int = int(data.get("battle_wins", 0))
         self.win_streak: int = int(data.get("win_streak", 0))
         self.best_streak: int = int(data.get("best_streak", 0))
+        self.boss_wins: int = int(data.get("boss_wins", 0))
         self.battle_stats: dict = dict(data.get("battle_stats", sp["base_stats"]))
 
     @property
@@ -225,6 +226,7 @@ class Pet:
             "battle_wins": self.battle_wins,
             "win_streak": self.win_streak,
             "best_streak": self.best_streak,
+            "boss_wins": self.boss_wins,
             "battle_stats": self.battle_stats,
         }
 
@@ -462,39 +464,65 @@ class Pet:
             return False, "Too hungry to battle! Feed first."
         return True, ""
 
-    def complete_battle(self, won: bool, enemy_level: int) -> dict:
-        """Applies Battle Arena XP, Bond, care costs, and streak tracking."""
-        self._mark_attended()
-        if won:
-            self.battle_wins += 1
-            self.win_streak += 1
-            self.best_streak = max(self.best_streak, self.win_streak)
-            self.energy = clamp(self.energy - 15.0)
-            self.hunger = clamp(self.hunger - 6.0)
-            self.happy = clamp(self.happy + 8.0)
-            bond_gain = 2 + min(3, self.win_streak // 2)
-            self.bond = min(999, self.bond + bond_gain)
-            xp_amt = 18 + enemy_level * 4 + min(25, self.win_streak * 3)
-        else:
-            self.win_streak = 0
-            self.energy = clamp(self.energy - 18.0)
-            self.hunger = clamp(self.hunger - 6.0)
-            self.happy = clamp(self.happy - 5.0)
-            bond_gain = 1
-            self.bond = min(999, self.bond + bond_gain)
-            xp_amt = 8 + enemy_level
+    def complete_battle(self, won: bool, enemy_level: int, is_boss: bool = False) -> dict:
+     """Applies Battle Arena XP, Bond, streak tracking, and Boss stat bonuses."""
+     self._mark_attended()
+     stat_reward: tuple[str, int] | None = None
 
-        xp_res = self.add_xp(xp_amt)
-        return {
-            "won": won,
-            "xp_gain": xp_res["xp_gain"],
-            "leveled_up": xp_res["leveled_up"],
-            "new_level": xp_res["new_level"],
-            "bond_gain": bond_gain,
-            "battle_wins": self.battle_wins,
-            "win_streak": self.win_streak,
-            "best_streak": self.best_streak,
-        }
+     if won:
+         self.battle_wins += 1
+         self.win_streak += 1
+         self.best_streak = max(self.best_streak, self.win_streak)
+         self.energy = clamp(self.energy - 15.0)
+         self.hunger = clamp(self.hunger - 6.0)
+         self.happy = clamp(self.happy + (14.0 if is_boss else 8.0))
+
+         base_xp = 18 + enemy_level * 4 + min(25, self.win_streak * 3)
+         if is_boss:
+             self.boss_wins += 1
+             bond_gain = 5 + min(4, self.win_streak // 3)
+             xp_amt = int(base_xp * 1.75) + 15
+         else:
+             bond_gain = 2 + min(3, self.win_streak // 2)
+             xp_amt = base_xp
+         self.bond = min(999, self.bond + bond_gain)
+     else:
+         self.win_streak = 0
+         self.energy = clamp(self.energy - 18.0)
+         self.hunger = clamp(self.hunger - 6.0)
+         self.happy = clamp(self.happy - 5.0)
+         bond_gain = 2 if is_boss else 1
+         self.bond = min(999, self.bond + bond_gain)
+         xp_amt = (14 + enemy_level * 2) if is_boss else (8 + enemy_level)
+
+     xp_res = self.add_xp(xp_amt)
+
+     # Award +2 permanent stat after XP so level-up caps are accounted for
+     if won and is_boss:
+         open_stats = [
+             k for k in ("atk", "def", "spd", "int")
+             if int(self.battle_stats.get(k, 5)) < MAX_STAT
+         ]
+         if open_stats:
+             pick = random.choice(open_stats)
+             old_v = int(self.battle_stats.get(pick, 5))
+             new_v = min(MAX_STAT, old_v + 2)
+             self.battle_stats[pick] = new_v
+             stat_reward = (pick, new_v - old_v)
+
+     return {
+         "won": won,
+         "is_boss": is_boss,
+         "xp_gain": xp_res["xp_gain"],
+         "leveled_up": xp_res["leveled_up"],
+         "new_level": xp_res["new_level"],
+         "bond_gain": bond_gain,
+         "stat_reward": stat_reward,
+         "battle_wins": self.battle_wins,
+         "boss_wins": self.boss_wins,
+         "win_streak": self.win_streak,
+         "best_streak": self.best_streak,
+     }
 
     def hug(self) -> tuple[bool, str]:
         if not self.alive:
