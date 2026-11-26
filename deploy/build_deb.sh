@@ -112,8 +112,11 @@ rm -f "$PKG_APP_DIR/deploy/build_deb.sh"
 # Strip any Windows CRLF endings from staged shell scripts
 find "$PKG_APP_DIR/deploy" -type f -name '*.sh' -exec sed -i 's/\r$//' {} +
 
-# Create CLI symlink (/usr/bin/z-pet -> /opt/z-pet/deploy/run_zpet.sh)
-ln -s "${INSTALL_ROOT}/deploy/run_zpet.sh" "$STAGE_DIR/usr/bin/${PKG_NAME}"
+# Create CLI launcher wrapper (/usr/bin/z-pet -> /opt/z-pet/deploy/run_zpet.sh)
+cat > "$STAGE_DIR/usr/bin/${PKG_NAME}" <<EOF
+#!/usr/bin/env bash
+exec "${INSTALL_ROOT}/deploy/run_zpet.sh" "\$@"
+EOF
 
 # Create APPLaunch desktop launcher
 cat > "$STAGE_DIR/usr/share/APPLaunch/applications/${PKG_NAME}.desktop" <<EOF
@@ -130,10 +133,12 @@ StartupNotify=false
 EOF
 
 # Set clean Debian permissions
+# Set clean Debian permissions
 find "$STAGE_DIR" -type d -exec chmod 0755 {} +
 find "$STAGE_DIR" -type f -exec chmod 0644 {} +
 find "$PKG_APP_DIR/deploy" -type f -name '*.sh' -exec chmod 0755 {} +
 chmod 0755 "$PKG_APP_DIR/main.py"
+chmod 0755 "$STAGE_DIR/usr/bin/${PKG_NAME}"
 
 # Calculate installed size in KiB (excluding DEBIAN/)
 INSTALLED_KB="$(du -sk --exclude="$STAGE_DIR/DEBIAN" "$STAGE_DIR" | awk '{print $1}')"

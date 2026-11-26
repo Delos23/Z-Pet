@@ -289,7 +289,8 @@ class Pet:
     ) -> float:
         now = now if now is not None else time.time()
         raw_elapsed = max(0.0, now - self.last_update)
-        sim_elapsed = min(raw_elapsed * time_scale, float(MAX_OFFLINE_SEC))
+        # Always calculate offline time away at real-time 1x (never multiply by test Game Speed)
+        sim_elapsed = min(raw_elapsed, float(MAX_OFFLINE_SEC))
 
         remaining = sim_elapsed
         while remaining > 0 and self.alive:

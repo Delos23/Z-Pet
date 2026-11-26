@@ -791,18 +791,8 @@ class HomeScene:
 
         if not self.pet.alive:
             if event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_r):
-                sound.play("evolve")
-                self.pet = Pet({"name": self.pet.name, "color": self.pet.color})
-                self._load_pet_assets()
-                self.walk_speed = 38.0 * self.pet.personality["walk_speed_mult"]
-                self.bed_state = "awake"
-                self.pet_x = 112.0
-                self.target_x = self._pick_new_target(112.0)
-                self.wander_timer = 0.8
-                self.lamp_dim = 0.0
-                save_pet(self.pet)
-                self.animator.play("happy", restart=True, next_anim="idle")
-                self.show_toast(f"A new {self.pet.name} hatched!")
+                sound.play("select")
+                return ("new_pet", {})
             return None
 
         if event.key in KEYS_LEFT:

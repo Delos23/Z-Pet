@@ -237,7 +237,13 @@ def main() -> int:
                 file_count += 1
 
         # CLI symlink: /usr/bin/z-pet -> /opt/z-pet/deploy/run_zpet.sh
-        _add_tar_symlink(tar, f"usr/bin/{pkg_name}", f"/{install_root}/deploy/run_zpet.sh", mtime, seen_dirs)
+        launcher_wrapper = (
+            "#!/usr/bin/env bash\n"
+            f'exec "/{install_root}/deploy/run_zpet.sh" "$@"\n'
+        ).encode("utf-8")
+        _add_tar_bytes(tar, f"usr/bin/{pkg_name}", launcher_wrapper, 0o755, mtime, seen_dirs)
+        total_bytes += len(launcher_wrapper)
+        file_count += 1
 
         # APPLaunch .desktop file
         desktop_text = (
