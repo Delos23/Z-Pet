@@ -3,7 +3,11 @@
 A pocket pixel-art virtual pet RPG built for the **M5Stack Cardputer Zero** (`320×170` SPI display) with full PC preview support. Raise one of 5 unique starter companions, customize their coat color and name, train their battle stats, play arcade mini-games, and unlock **35 Baby, Teen, and Adult evolutions** shaped by how you care for them.
 
 ![Z-Pet Screenshot](assets/images/screenshot01.png)
-
+![Z-Pet Screenshot](assets/images/screenshot02.png)
+![Z-Pet Screenshot](assets/images/screenshot03.png)
+![Z-Pet Screenshot](assets/images/screenshot04.png)
+![Z-Pet Screenshot](assets/images/screenshot05.png)
+![Z-Pet Screenshot](assets/images/screenshot06.png)
 ---
 
 ## Quick Controls
