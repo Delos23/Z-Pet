@@ -30,36 +30,36 @@ TRAIT_DETAILS = [
     (
         "hyper",
         "Hyper",
-        "Sparkkit Line",
-        ["+25% XP from Star Catch", "25% faster room walk"],
+        "Sparkkit",
+        ["+25% Star Catch XP", "+25% faster room walk"],
         "Hunger drains 15% faster",
     ),
     (
         "bold",
         "Bold",
-        "Cinderpup Line",
-        ["+25% XP from Teach drills", "Meals give +4 extra Hunger"],
+        "Cinderpup",
+        ["+25% Teach drill XP", "Meals give +4 Hunger"],
         "Energy drains 10% faster",
     ),
     (
         "serene",
         "Serene",
-        "Aquafin Line",
-        ["Energy drains 20% slower", "+20% faster sleep recovery"],
+        "Aquafin",
+        ["Energy drains 20% slower", "+20% faster sleep rest"],
         "Clean drains 10% faster",
     ),
     (
         "gentle",
         "Gentle",
-        "Sproutowl Line",
-        ["+1 extra Bond on Hug/Treat", "Hunger drains 20% slower"],
+        "Sproutowl",
+        ["+1 Bond on Hug & Treat", "Hunger drains 20% slower"],
         "Calm, slower room walk",
     ),
     (
         "curious",
         "Curious",
-        "Cogbit Line",
-        ["+25% XP on Feed/Hug/Clean", "+1 bonus stat on Perfect drill"],
+        "Cogbit",
+        ["+25% Feed/Hug/Clean XP", "+1 stat on Perfect drill"],
         "Happy drains 15% faster",
     ),
 ]
@@ -70,10 +70,10 @@ CARE_TOPICS = [
         GOOD_COL,
         "Attentive, high-Bond care",
         [
-            f"Teen (Lv.{TEEN_EVOLVE_LEVEL}): 0-1 Mistakes, BND 20+",
-            f"Adult (Lv.{ADULT_EVOLVE_LEVEL}): 0-2 Mistakes, BND 45+",
-            "How: Feed, hug, clean & play",
-            "Unlocks balanced/mystic forms",
+            f"Lv.{TEEN_EVOLVE_LEVEL}: 0-1 MST, BND 20+",
+            f"Lv.{ADULT_EVOLVE_LEVEL}: 0-2 MST, BND 45+",
+            "Feed, hug, clean & play",
+            "Balanced & mystic forms",
         ],
     ),
     (
@@ -81,10 +81,10 @@ CARE_TOPICS = [
         CYAN_COL,
         "Focused on Teach Drills",
         [
-            f"Teen (Lv.{TEEN_EVOLVE_LEVEL}): 4+ Drills, <=2 Mistakes",
-            f"Adult (Lv.{ADULT_EVOLVE_LEVEL}): 9+ Drills, <=3 Mistakes",
-            "How: Hit daily [D] Teach drills",
-            "Unlocks combat/armored forms",
+            f"Lv.{TEEN_EVOLVE_LEVEL}: 4+ Drills, <=2 MST",
+            f"Lv.{ADULT_EVOLVE_LEVEL}: 9+ Drills, <=3 MST",
+            "Hit daily Teach drills",
+            "Combat & armored forms",
         ],
     ),
     (
@@ -92,10 +92,10 @@ CARE_TOPICS = [
         WARN_COL,
         "Scrappy rogue evolution",
         [
-            f"Teen (Lv.{TEEN_EVOLVE_LEVEL}): 3+ Mistakes or low BND",
-            f"Adult (Lv.{ADULT_EVOLVE_LEVEL}): 5+ Mistakes or low BND",
-            "Not weak! Fierce high-ATK path",
-            "Teens can still switch paths!",
+            f"Lv.{TEEN_EVOLVE_LEVEL}: 3+ MST or low BND",
+            f"Lv.{ADULT_EVOLVE_LEVEL}: 5+ MST or low BND",
+            "Fierce high-ATK forms!",
+            "Teens can switch paths",
         ],
     ),
     (
@@ -103,10 +103,10 @@ CARE_TOPICS = [
         (240, 110, 125),
         "How Care Mistakes happen",
         [
-            "Hunger, Happy, or Clean < 15%",
-            "Or 3+ poops left on the floor",
-            "Unattended 30+ min = +1 MST",
-            "Clean & feed fast to reset timer",
+            "HG, HP, or CL below 15%",
+            "Or 3+ poops on the floor",
+            "30+ min ignored = +1 MST",
+            "Care quickly to reset",
         ],
     ),
 ]
@@ -178,7 +178,7 @@ def _build_catalog() -> tuple[list[str], dict[str, dict]]:
             meta[adult_id] = {
                 "family": starter_name,
                 "path": a_path,
-                "hint": f"{starter_name} line Lv.{ADULT_EVOLVE_LEVEL} ({a_lbl})",
+                "hint": f"{starter_name} Lv.{ADULT_EVOLVE_LEVEL} ({a_lbl})",
                 "next_hint": "Final Adult Form",
             }
 
@@ -250,31 +250,31 @@ class GuideScene:
                 return ("status", {"pet": self.pet})
             return ("title", {})
 
-        # Switch tabs with Left/Right, A/D, Tab, or 1/2/3
         if event.key in KEYS_LEFT:
-         self.tab_idx = (self.tab_idx - 1) % len(TABS)
+            self.tab_idx = (self.tab_idx - 1) % len(TABS)
         elif event.key in KEYS_RIGHT or event.key == pygame.K_TAB:
-         self.tab_idx = (self.tab_idx + 1) % len(TABS)
+            self.tab_idx = (self.tab_idx + 1) % len(TABS)
         elif event.key == pygame.K_1:
-         self.tab_idx = 0
+            self.tab_idx = 0
         elif event.key == pygame.K_2:
-         self.tab_idx = 1
+            self.tab_idx = 1
         elif event.key == pygame.K_3:
-         self.tab_idx = 2
+            self.tab_idx = 2
         elif event.key in KEYS_UP:
-         if self.tab_idx == 0:
-             self.species_idx = (self.species_idx - 1) % len(self.catalog)
-         elif self.tab_idx == 1:
-             self.trait_idx = (self.trait_idx - 1) % len(TRAIT_DETAILS)
-         else:
-             self.care_idx = (self.care_idx - 1) % len(CARE_TOPICS)
+            if self.tab_idx == 0:
+                self.species_idx = (self.species_idx - 1) % len(self.catalog)
+            elif self.tab_idx == 1:
+                self.trait_idx = (self.trait_idx - 1) % len(TRAIT_DETAILS)
+            else:
+                self.care_idx = (self.care_idx - 1) % len(CARE_TOPICS)
         elif event.key in KEYS_DOWN:
-         if self.tab_idx == 0:
-             self.species_idx = (self.species_idx + 1) % len(self.catalog)
-         elif self.tab_idx == 1:
-             self.trait_idx = (self.trait_idx + 1) % len(TRAIT_DETAILS)
-         else:
-             self.care_idx = (self.care_idx + 1) % len(CARE_TOPICS)
+            if self.tab_idx == 0:
+                self.species_idx = (self.species_idx + 1) % len(self.catalog)
+            elif self.tab_idx == 1:
+                self.trait_idx = (self.trait_idx + 1) % len(TRAIT_DETAILS)
+            else:
+                self.care_idx = (self.care_idx + 1) % len(CARE_TOPICS)
+        return None
 
     def update(self, dt: float) -> None:
         return None
@@ -339,16 +339,19 @@ class GuideScene:
         pygame.draw.rect(canvas, settings.COLOR_PANEL, right, border_radius=5)
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, right, 1, border_radius=5)
 
+        canvas.set_clip(right.inflate(-4, -4))
+        max_w = right.w - 14
+
         if unlocked:
             pers = get_personality(sid)
             name_s = self.fonts["sans"].render(sp["name"], True, settings.COLOR_TEXT)
-            canvas.blit(name_s, (116, 32))
+            canvas.blit(name_s, (115, 32))
 
             trait_s = self.fonts["mono"].render(pers["label"], True, WARN_COL)
-            canvas.blit(trait_s, (306 - trait_s.get_width(), 32))
+            canvas.blit(trait_s, (right.right - trait_s.get_width() - 7, 32))
 
             tag_s = self.fonts["sans"].render(sp["tagline"], True, settings.COLOR_MUTED)
-            canvas.blit(tag_s, (116, 47))
+            canvas.blit(tag_s, (115, 47))
 
             st = sp["base_stats"]
             stat_s = self.fonts["mono"].render(
@@ -356,91 +359,114 @@ class GuideScene:
                 True,
                 CYAN_COL,
             )
-            canvas.blit(stat_s, (116, 63))
+            canvas.blit(stat_s, (115, 63))
 
-            pygame.draw.line(canvas, (72, 54, 108), (116, 79), (306, 79), 1)
+            pygame.draw.line(canvas, (72, 54, 108), (115, 79), (right.right - 7, 79), 1)
 
             ab = sp.get("ability") or {}
             ab_name = ab.get("name", "None")
             ab_desc = ab.get("desc", "")
-            canvas.blit(self.fonts["sans"].render(f"Skill: {ab_name}", True, GOLD_COL), (116, 82))
-            for i, line in enumerate(_wrap_text(self.fonts["sans"], ab_desc, 190)[:2]):
-                canvas.blit(self.fonts["sans"].render(line, True, settings.COLOR_MUTED), (116, 97 + i * 13))
+            canvas.blit(self.fonts["sans"].render(f"Skill: {ab_name}", True, GOLD_COL), (115, 82))
+            for i, line in enumerate(_wrap_text(self.fonts["sans"], ab_desc, max_w)[:2]):
+                canvas.blit(self.fonts["sans"].render(line, True, settings.COLOR_MUTED), (115, 97 + i * 13))
 
             path_key = lin.get("path")
             hint_col = CARE_PATH_META[path_key][1] if path_key in CARE_PATH_META else GOOD_COL
             hint_txt = lin["hint"] if sp["stage"] != "baby" else lin["next_hint"]
-            canvas.blit(self.fonts["sans"].render(hint_txt, True, hint_col), (116, 126))
+            canvas.blit(self.fonts["sans"].render(hint_txt, True, hint_col), (115, 126))
         else:
-            canvas.blit(self.fonts["sans"].render("??? (Undiscovered)", True, settings.COLOR_MUTED), (116, 33))
+            canvas.blit(self.fonts["sans"].render("??? (Undiscovered)", True, settings.COLOR_MUTED), (115, 33))
             fam_s = self.fonts["sans"].render(f"Family: {lin['family']}", True, settings.COLOR_ACCENT)
-            canvas.blit(fam_s, (116, 51))
+            canvas.blit(fam_s, (115, 51))
 
-            pygame.draw.line(canvas, (72, 54, 108), (116, 69), (306, 69), 1)
+            pygame.draw.line(canvas, (72, 54, 108), (115, 69), (right.right - 7, 69), 1)
 
-            canvas.blit(self.fonts["sans"].render("How to unlock:", True, GOLD_COL), (116, 74))
-            for i, line in enumerate(_wrap_text(self.fonts["sans"], lin["hint"], 190)[:2]):
-                canvas.blit(self.fonts["sans"].render(line, True, settings.COLOR_TEXT), (116, 91 + i * 15))
+            canvas.blit(self.fonts["sans"].render("How to unlock:", True, GOLD_COL), (115, 74))
+            for i, line in enumerate(_wrap_text(self.fonts["sans"], lin["hint"], max_w)[:2]):
+                canvas.blit(self.fonts["sans"].render(line, True, settings.COLOR_TEXT), (115, 91 + i * 15))
 
-            canvas.blit(self.fonts["mono"].render("A:?? D:?? S:?? I:??", True, settings.COLOR_MUTED), (116, 124))
+            canvas.blit(self.fonts["mono"].render("A:?? D:?? S:?? I:??", True, settings.COLOR_MUTED), (115, 124))
+
+        canvas.set_clip(None)
 
     def _draw_traits_tab(self, canvas: pygame.Surface) -> None:
-        # Left trait selector
+        # Left trait selector (compact 82px column leaves 222px for details)
         for idx, (_pid, label, _line, _perks, _trade) in enumerate(TRAIT_DETAILS):
-            ry = 30 + idx * 22
-            rect = pygame.Rect(6, ry, 92, 20)
+            ry = 29 + idx * 23
+            rect = pygame.Rect(6, ry, 82, 20)
             selected = idx == self.trait_idx
             pygame.draw.rect(canvas, SEL_FILL if selected else settings.COLOR_PANEL, rect, border_radius=4)
             pygame.draw.rect(canvas, GOOD_COL if selected else settings.COLOR_ACCENT, rect, 1, border_radius=4)
             lbl = self.fonts["sans"].render(
                 label, True, settings.COLOR_TEXT if selected else settings.COLOR_MUTED
             )
-            canvas.blit(lbl, (14, ry + 2))
+            canvas.blit(lbl, (12, ry + 2))
 
         # Right trait detail card
         _pid, label, line_name, perks, tradeoff = TRAIT_DETAILS[self.trait_idx]
-        card = pygame.Rect(104, 30, 210, 112)
+        card = pygame.Rect(92, 28, 222, 116)
         pygame.draw.rect(canvas, settings.COLOR_PANEL, card, border_radius=5)
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, card, 1, border_radius=5)
 
-        canvas.blit(self.fonts["sans"].render(f"{label} Trait", True, GOLD_COL), (112, 35))
+        canvas.set_clip(card.inflate(-4, -4))
+        text_x = card.x + 8
+        max_w = card.w - 16
+
+        canvas.blit(self.fonts["sans"].render(f"{label} Trait", True, GOLD_COL), (text_x, 33))
         line_s = self.fonts["mono"].render(line_name, True, settings.COLOR_ACCENT)
-        canvas.blit(line_s, (306 - line_s.get_width(), 35))
-        pygame.draw.line(canvas, (72, 54, 108), (112, 52), (306, 52), 1)
+        canvas.blit(line_s, (card.right - line_s.get_width() - 8, 33))
+        pygame.draw.line(canvas, (72, 54, 108), (text_x, 49), (card.right - 8, 49), 1)
 
-        canvas.blit(self.fonts["sans"].render("Perks:", True, GOOD_COL), (112, 56))
-        y = 71
+        y = 53
+        canvas.blit(self.fonts["sans"].render("Perks:", True, GOOD_COL), (text_x, y))
+        y += 14
         for perk in perks:
-            canvas.blit(self.fonts["sans"].render(f"+ {perk}", True, settings.COLOR_TEXT), (114, y))
-            y += 15
+            for wline in _wrap_text(self.fonts["sans"], f"+ {perk}", max_w):
+                canvas.blit(self.fonts["sans"].render(wline, True, settings.COLOR_TEXT), (text_x, y))
+                y += 14
 
-        canvas.blit(self.fonts["sans"].render("Trade-off:", True, WARN_COL), (112, 106))
-        canvas.blit(self.fonts["sans"].render(f"- {tradeoff}", True, settings.COLOR_MUTED), (114, 121))
+        y = max(y + 4, 101)
+        canvas.blit(self.fonts["sans"].render("Trade-off:", True, WARN_COL), (text_x, y))
+        y += 14
+        for wline in _wrap_text(self.fonts["sans"], f"- {tradeoff}", max_w):
+            canvas.blit(self.fonts["sans"].render(wline, True, settings.COLOR_MUTED), (text_x, y))
+            y += 14
+
+        canvas.set_clip(None)
 
     def _draw_care_tab(self, canvas: pygame.Surface) -> None:
         # Left care path selector
         for idx, (label, accent, _sub, _bullets) in enumerate(CARE_TOPICS):
-            ry = 32 + idx * 27
-            rect = pygame.Rect(6, ry, 92, 23)
+            ry = 30 + idx * 28
+            rect = pygame.Rect(6, ry, 82, 24)
             selected = idx == self.care_idx
             pygame.draw.rect(canvas, SEL_FILL if selected else settings.COLOR_PANEL, rect, border_radius=4)
             pygame.draw.rect(canvas, accent if selected else settings.COLOR_ACCENT, rect, 1, border_radius=4)
             lbl = self.fonts["sans"].render(label, True, accent if selected else settings.COLOR_MUTED)
-            canvas.blit(lbl, (14, ry + 4))
+            canvas.blit(lbl, (12, ry + 4))
 
         # Right care rules card
         label, accent, subtitle, bullets = CARE_TOPICS[self.care_idx]
-        card = pygame.Rect(104, 30, 210, 112)
+        card = pygame.Rect(92, 28, 222, 116)
         pygame.draw.rect(canvas, settings.COLOR_PANEL, card, border_radius=5)
         pygame.draw.rect(canvas, accent, card, 1, border_radius=5)
 
-        canvas.blit(self.fonts["sans"].render(f"{label} Path", True, accent), (112, 35))
-        canvas.blit(self.fonts["sans"].render(subtitle, True, settings.COLOR_MUTED), (112, 50))
-        pygame.draw.line(canvas, (72, 54, 108), (112, 66), (306, 66), 1)
+        canvas.set_clip(card.inflate(-4, -4))
+        text_x = card.x + 8
+        max_w = card.w - 16
 
+        canvas.blit(self.fonts["sans"].render(f"{label} Path", True, accent), (text_x, 33))
+        canvas.blit(self.fonts["sans"].render(subtitle, True, settings.COLOR_MUTED), (text_x, 48))
+        pygame.draw.line(canvas, (72, 54, 108), (text_x, 64), (card.right - 8, 64), 1)
+
+        y = 69
         for i, line in enumerate(bullets):
             col = settings.COLOR_TEXT if i < 2 else settings.COLOR_ACCENT
-            canvas.blit(self.fonts["sans"].render(line, True, col), (112, 71 + i * 16))
+            for wline in _wrap_text(self.fonts["sans"], line, max_w):
+                canvas.blit(self.fonts["sans"].render(wline, True, col), (text_x, y))
+                y += 16
+
+        canvas.set_clip(None)
 
     def render(self, canvas: pygame.Surface) -> None:
         canvas.fill(settings.COLOR_BG)
