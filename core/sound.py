@@ -6,9 +6,12 @@ from datetime import datetime
 import math
 import os
 import random
+import subprocess
+import threading
 import threading
 import time
 import pygame
+
 
 DEFAULT_SAMPLE_RATE = 48000
 _MIXER_RATE = DEFAULT_SAMPLE_RATE
@@ -1597,7 +1600,10 @@ def init(
         f"Z-Pet audio ready: {_MIXER_RATE}Hz fmt={fmt} {_MIXER_CH}ch "
         f"(driver={info}, sfx={_SFX_LEVEL}, music={_MUSIC_LEVEL})"
     )
+   
+    _ensure_vol_worker()
     return True
+    
 
 
 def set_sfx_level(level: str | bool) -> str:
@@ -1755,3 +1761,149 @@ def stop_music() -> None:
             _BGM_CHANNEL.stop()
         except pygame.error:
             pass
+        # --- Cardputer Zero Hardware Volume Keys (fn+A Mute, fn+S Down, fn+D Up) ---
+import subprocess
+
+HW_KEY_MUTE = 113       # Linux evdev KEY_MUTE
+HW_KEY_VOLDOWN = 114    # Linux evdev KEY_VOLUMEDOWN
+HW_KEY_VOLUP = 115      # Linux evdev KEY_VOLUMEUP
+
+_SYS_VOL = 0.65
+_SYS_MUTED = False
+_OSD_UNTIL = 0.0
+_VOL_LOCK = threading.Lock()
+_VOL_EVENT = threading.Event()
+_VOL_WORKER_STARTED = False
+_VOL_DIRTY = False
+
+
+def _read_system_volume() -> None:
+    """Seeds initial hardware volume and mute state from PipeWire on Linux."""
+    global _SYS_VOL, _SYS_MUTED
+    if os.name == "nt":
+        return
+    try:
+        res = subprocess.run(
+            ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
+            capture_output=True,
+            text=True,
+            timeout=1.5,
+        )
+        if res.returncode == 0 and res.stdout:
+            parts = res.stdout.strip().split()
+            if len(parts) >= 2:
+                vol = max(0.0, min(1.0, float(parts[1])))
+                muted = "[MUTED]" in res.stdout
+                with _VOL_LOCK:
+                    _SYS_VOL = round(vol, 2)
+                    _SYS_MUTED = muted
+    except Exception:
+        pass
+
+
+def _vol_worker_loop() -> None:
+    """Applies PipeWire volume changes off the render thread so rapid presses never stutter."""
+    global _VOL_DIRTY
+    _read_system_volume()
+    while True:
+        _VOL_EVENT.wait()
+        while True:
+            with _VOL_LOCK:
+                if not _VOL_DIRTY:
+                    _VOL_EVENT.clear()
+                    break
+                target_vol = _SYS_VOL
+                target_muted = _SYS_MUTED
+                _VOL_DIRTY = False
+            try:
+                subprocess.run(
+                    ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1" if target_muted else "0"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=1.5,
+                )
+                subprocess.run(
+                    ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{target_vol:.2f}"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=1.5,
+                )
+            except Exception:
+                pass
+
+
+def _ensure_vol_worker() -> None:
+    global _VOL_WORKER_STARTED
+    if os.name == "nt" or _VOL_WORKER_STARTED:
+        return
+    _VOL_WORKER_STARTED = True
+    threading.Thread(target=_vol_worker_loop, daemon=True).start()
+
+
+def step_system_volume(delta: float) -> None:
+    """Adjusts Cardputer Zero speaker volume in 5% steps (auto-unmutes when raising)."""
+    global _SYS_VOL, _SYS_MUTED, _OSD_UNTIL, _VOL_DIRTY
+    _ensure_vol_worker()
+    with _VOL_LOCK:
+        _SYS_VOL = round(max(0.0, min(1.0, _SYS_VOL + delta)), 2)
+        if delta > 0 and _SYS_MUTED:
+            _SYS_MUTED = False
+        _VOL_DIRTY = True
+        _OSD_UNTIL = time.monotonic() + 1.8
+    _VOL_EVENT.set()
+
+
+def toggle_system_mute() -> None:
+    """Toggles Cardputer Zero hardware speaker mute."""
+    global _SYS_MUTED, _OSD_UNTIL, _VOL_DIRTY
+    _ensure_vol_worker()
+    with _VOL_LOCK:
+        _SYS_MUTED = not _SYS_MUTED
+        _VOL_DIRTY = True
+        _OSD_UNTIL = time.monotonic() + 1.8
+    _VOL_EVENT.set()
+
+
+def handle_hw_volume_key(evdev_code: int, value: int) -> bool:
+    """Intercepts Linux evdev volume keys (1=press, 2=repeat). Returns True if handled."""
+    if evdev_code == HW_KEY_VOLUP:
+        if value in (1, 2):
+            step_system_volume(0.05)
+        return True
+    if evdev_code == HW_KEY_VOLDOWN:
+        if value in (1, 2):
+            step_system_volume(-0.05)
+        return True
+    if evdev_code == HW_KEY_MUTE:
+        if value == 1:
+            toggle_system_mute()
+        return True
+    return False
+
+
+def draw_volume_osd(canvas: pygame.Surface, font: pygame.font.Font) -> None:
+    """Draws a compact 1.8s hardware volume overlay at the top of the 320x170 screen."""
+    if time.monotonic() >= _OSD_UNTIL:
+        return
+    with _VOL_LOCK:
+        vol = _SYS_VOL
+        muted = _SYS_MUTED
+
+    box = pygame.Rect(92, 6, 136, 20)
+    pygame.draw.rect(canvas, (24, 18, 42), box, border_radius=4)
+    border_col = (240, 95, 115) if muted else (105, 225, 145)
+    pygame.draw.rect(canvas, border_col, box, 1, border_radius=4)
+
+    label = "MUTED" if muted else f"VOL {int(round(vol * 100)):3d}%"
+    lbl_s = font.render(label, True, border_col)
+    canvas.blit(lbl_s, (box.x + 6, box.y + (box.h - lbl_s.get_height()) // 2))
+
+    # Mini segmented bar on the right half of the pill
+    bar_x = box.x + 76
+    bar_y = box.y + 6
+    bar_w = 52
+    bar_h = 8
+    pygame.draw.rect(canvas, (46, 36, 70), (bar_x, bar_y, bar_w, bar_h), border_radius=2)
+    if not muted and vol > 0.0:
+        fill_w = max(2, int(round(bar_w * vol)))
+        pygame.draw.rect(canvas, border_col, (bar_x, bar_y, fill_w, bar_h), border_radius=2)

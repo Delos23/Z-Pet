@@ -5,8 +5,8 @@ from pathlib import Path
 import struct
 import sys
 import pygame
-
 import settings
+from core import sound
 
 # Linux EV_KEY codes -> Pygame keys (Cardputer Zero TCA8418 keyboard)
 LINUX_KEYMAP = {
@@ -179,10 +179,15 @@ class DisplayBackend:
 
                 for offset in range(0, len(data) - INPUT_EVENT_SIZE + 1, INPUT_EVENT_SIZE):
                     _, _, ev_type, ev_code, ev_val = struct.unpack_from(INPUT_EVENT_FMT, data, offset)
-                    if ev_type == EV_KEY and ev_val in (0, 1):
+                    if ev_type != EV_KEY:
+                        continue
+                    if sound.handle_hw_volume_key(ev_code, ev_val):
+                        continue
+                    if ev_val in (0, 1):
                         pg_key = LINUX_KEYMAP.get(ev_code)
                         if pg_key is not None:
                             ev_kind = pygame.KEYDOWN if ev_val == 1 else pygame.KEYUP
+                            pygame.event.post(pygame.event.Event(ev_kind, key=pg_key))
                             pygame.event.post(pygame.event.Event(ev_kind, key=pg_key))
 
     def present(self, canvas: pygame.Surface) -> None:
