@@ -19,6 +19,7 @@ from scenes.minigame import StarCatchScene
 from scenes.status import StatusScene
 from scenes.teach import TeachScene
 from scenes.guide import GuideScene
+from scenes.battle import BattleScene
 
 def save_screenshot(canvas: pygame.Surface) -> str:
     """Saves an exact 320x170 PNG screenshot for CardputerZero Store submission."""
@@ -98,6 +99,10 @@ def main() -> None:
                 pet=payload["pet"],
                 target_species_id=payload["target_species"],
             )
+        
+        elif next_name == "battle":
+         scene = BattleScene(fonts, config, pet=payload["pet"])
+        
         elif next_name == "guide":
              scene = GuideScene(
              fonts,

@@ -38,6 +38,7 @@ HOME_ACTIONS = [
     ("treat",  "Treat"),
     ("play",   "Play"),
     ("train",  "Train"),
+    ("battle", "Battle"),
     ("clean",  "Clean"),
     ("sleep",  "Bed"),
     ("hug",    "Hug"),
@@ -153,6 +154,18 @@ def build_action_icons() -> dict[str, pygame.Surface]:
     pygame.draw.rect(s, (110, 185, 245, 255), (7, 4, 2, 7))
     pygame.draw.rect(s, (105, 225, 145, 255), (10, 2, 2, 9))
     icons["status"] = s
+
+    # 9. Battle (crossed silver swords with gold hilts)
+    s = pygame.Surface((14, 14), pygame.SRCALPHA)
+    blade = (224, 232, 248, 255)
+    hilt = (255, 212, 82, 255)
+    pygame.draw.line(s, blade, (2, 2), (10, 10), 2)
+    pygame.draw.line(s, blade, (11, 2), (3, 10), 2)
+    pygame.draw.line(s, hilt, (2, 8), (5, 11), 2)
+    pygame.draw.line(s, hilt, (11, 8), (8, 11), 2)
+    pygame.draw.rect(s, (196, 86, 112, 255), (1, 10, 2, 2))
+    pygame.draw.rect(s, (196, 86, 112, 255), (10, 10, 2, 2))
+    icons["battle"] = s
 
     return icons
 
@@ -605,6 +618,14 @@ class HomeScene:
             self.show_toast(msg)
             return None
 
+        if action_id == "battle":
+         ok, msg = self.pet.can_battle()
+         if ok:
+             save_pet(self.pet)
+             return ("battle", {"pet": self.pet})
+         self.show_toast(msg)
+         return None
+        
         if action_id == "play":
             ok, msg = self.pet.can_play()
             if ok:
@@ -768,7 +789,7 @@ class HomeScene:
         return None
 
     def _draw_icon_dock(self, canvas: pygame.Surface) -> None:
-        """Draws the clean 8-icon bottom dock and auto-fading tooltip pill."""
+        """Draws the bottom icon dock auto-sized to stay inside 320px."""
         dock_y = 146
         pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, dock_y, settings.LOGICAL_WIDTH, 24))
         pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, dock_y), (settings.LOGICAL_WIDTH, dock_y), 1)
@@ -778,10 +799,14 @@ class HomeScene:
             canvas.blit(ctrl_surf, ((settings.LOGICAL_WIDTH - ctrl_surf.get_width()) // 2, 151))
             return
 
-        slot_w = 36
+        count = len(HOME_ACTIONS)
+        margin = 4
+        gap = 3 if count <= 9 else 2
+        usable_w = settings.LOGICAL_WIDTH - margin * 2 - gap * (count - 1)
+        slot_w = min(36, usable_w // count)
         slot_h = 20
-        gap = 3
-        start_x = (settings.LOGICAL_WIDTH - (len(HOME_ACTIONS) * slot_w + (len(HOME_ACTIONS) - 1) * gap)) // 2
+        total_w = count * slot_w + (count - 1) * gap
+        start_x = (settings.LOGICAL_WIDTH - total_w) // 2
         pulse_on = int(self.elapsed * 3.0) % 2 == 0
 
         sel_center_x = 0
@@ -796,7 +821,6 @@ class HomeScene:
             if selected:
                 pygame.draw.rect(canvas, DOCK_SLOT_SEL, rect, border_radius=4)
                 pygame.draw.rect(canvas, BAR_GOOD, rect, 1, border_radius=4)
-                # Tiny highlight pointer notch above the selected icon
                 cx = sx + slot_w // 2
                 pygame.draw.polygon(canvas, BAR_GOOD, [(cx - 3, dock_y), (cx + 3, dock_y), (cx, dock_y - 3)])
                 sel_center_x = cx
@@ -809,11 +833,9 @@ class HomeScene:
             icon_surf = self.icons[icon_key]
             canvas.blit(icon_surf, (sx + (slot_w - 14) // 2, sy + (slot_h - 14) // 2))
 
-            # Subtle pulsing alert dot when a care stat needs attention
             if self._action_needs_alert(action_id) and pulse_on:
                 pygame.draw.rect(canvas, BAR_LOW, (sx + slot_w - 6, sy + 2, 4, 4), border_radius=1)
 
-        # Auto-fading label pill above the selected icon
         if self.label_timer > 0 and sel_label:
             lbl_surf = self.fonts["sans"].render(sel_label, True, settings.COLOR_TEXT)
             pill_w = lbl_surf.get_width() + 10
@@ -823,7 +845,7 @@ class HomeScene:
             pygame.draw.rect(canvas, settings.COLOR_PANEL, (pill_x, pill_y, pill_w, pill_h), border_radius=4)
             pygame.draw.rect(canvas, BAR_GOOD, (pill_x, pill_y, pill_w, pill_h), 1, border_radius=4)
             canvas.blit(lbl_surf, (pill_x + 5, pill_y + 1))
-
+            
     def _draw_hud(self, canvas: pygame.Surface, clock_str: str) -> None:
         font_sans = self.fonts["sans"]
         font_mono = self.fonts["mono"]

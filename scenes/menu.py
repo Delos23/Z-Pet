@@ -188,7 +188,7 @@ class TitleScene:
             lbl_surf = self.fonts["sans"].render(display_lbl, True, text_col)
             canvas.blit(lbl_surf, (178, row_y + 4))
 
-        _draw_footer(canvas, self.fonts["sans"], "Up/Dn:Move  Enter:Select  Esc:Quit")
+        _draw_footer(canvas, self.fonts["sans"], "↑/↓:Move  Enter:Select  Esc:Quit")
 
 
 class NewPetScene:
@@ -412,7 +412,7 @@ class NewPetScene:
           "Type Name  Bksp:Del  ↑/↓:Row  Enter:Hatch"
           if name_focused
           else "←/→:Pick  ↑/↓:Row  Enter:Hatch"
-         )
+       )
         _draw_footer(canvas, self.fonts["sans"], foot)
 
 
