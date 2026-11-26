@@ -1,4 +1,4 @@
-"""Procedural 8-bit retro SFX & gapless multi-section BGM engine for Z-Pet."""
+"""Procedural 8-bit retro SFX & gapless multi-section mono BGM engine for Z-Pet."""
 
 from array import array
 from collections import deque
@@ -12,7 +12,7 @@ import pygame
 
 DEFAULT_SAMPLE_RATE = 48000
 _MIXER_RATE = DEFAULT_SAMPLE_RATE
-_MIXER_CH = 2
+_MIXER_CH = 1
 _BGM_DIV = 2
 _BGM_RATE = float(DEFAULT_SAMPLE_RATE // 2)
 _DRUMS: dict[str, list[int]] = {}
@@ -41,6 +41,8 @@ _NEXT_RANDOM_TRACK: str | None = None
 _PAUSED_BGM = False
 
 _SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+_WT_SIZE = 256
+_WT_MASK = _WT_SIZE - 1
 
 _MOOD_PLAYLISTS: dict[str, list[str]] = {
     "day": ["day_meadow", "day_breeze", "day_sunny"],
@@ -60,8 +62,54 @@ _LEGACY_MOOD_MAP: dict[str, str] = {
 }
 
 
+def _make_wavetables() -> dict[str, tuple[float, ...]]:
+    """Precomputes band-limited 256-entry wavetables (warm retro tone, zero aliasing)."""
+    two_pi = 2.0 * math.pi
+    sine = tuple(math.sin(two_pi * i / _WT_SIZE) for i in range(_WT_SIZE))
+    tri = tuple(4.0 * abs((i / _WT_SIZE) - 0.5) - 1.0 for i in range(_WT_SIZE))
+
+    # Warm music-box bell (audible on small 1W speakers unlike a quiet pure sine)
+    bell_raw = [
+        0.72 * math.sin(two_pi * i / _WT_SIZE)
+        + 0.22 * math.sin(2.0 * two_pi * i / _WT_SIZE)
+        + 0.06 * math.sin(3.0 * two_pi * i / _WT_SIZE)
+        for i in range(_WT_SIZE)
+    ]
+    bell_max = max(abs(x) for x in bell_raw) or 1.0
+    bell = tuple(x / bell_max for x in bell_raw)
+
+    # Band-limited 50% square (odd harmonics 1, 3, 5, 7)
+    sq_raw = [
+        sum(math.sin(k * two_pi * i / _WT_SIZE) / k for k in (1, 3, 5, 7))
+        for i in range(_WT_SIZE)
+    ]
+    sq_max = max(abs(x) for x in sq_raw) or 1.0
+    square = tuple(x / sq_max for x in sq_raw)
+
+    # Band-limited 25% pulse (harmonics 1..7)
+    p25_raw = [
+        sum(
+            (math.sin(k * math.pi * 0.25) / k) * math.sin(k * two_pi * i / _WT_SIZE)
+            for k in range(1, 8)
+        )
+        for i in range(_WT_SIZE)
+    ]
+    p25_max = max(abs(x) for x in p25_raw) or 1.0
+    pulse25 = tuple(x / p25_max for x in p25_raw)
+
+    return {
+        "sine": sine,
+        "bell": bell,
+        "triangle": tri,
+        "square": square,
+        "pulse25": pulse25,
+    }
+
+
+_WAVETABLES = _make_wavetables()
+
+
 def _arp(chords: list[tuple[tuple[str, ...], float]], step: float = 0.5) -> list[tuple[str, float]]:
-    """Expands (chord_notes, total_beats) entries into rhythmic chiptune arpeggios."""
     notes: list[tuple[str, float]] = []
     for tones, beats in chords:
         count = max(1, int(round(beats / step)))
@@ -76,10 +124,10 @@ _SONG_DEFS: dict[str, dict] = {
         "bpm": 112,
         "lead_wave": "pulse25",
         "bass_wave": "triangle",
-        "arp_wave": "sine",
-        "lead_vol": 0.088,
-        "bass_vol": 0.072,
-        "arp_vol": 0.038,
+        "arp_wave": "bell",
+        "lead_vol": 0.21,
+        "bass_vol": 0.16,
+        "arp_vol": 0.09,
         "decay": 0.55,
         "sections": [
             (
@@ -106,7 +154,7 @@ _SONG_DEFS: dict[str, dict] = {
                     ("E5", 1.0), ("G5", 0.5), ("F5", 0.5), ("E5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("A2", 1.0), ("E3", 1.0), ("A2", 1.0), ("E3", 1.0),
+                    ("A3", 1.0), ("E3", 1.0), ("A3", 1.0), ("E3", 1.0),
                     ("F3", 1.0), ("C4", 1.0), ("F3", 1.0), ("C4", 1.0),
                     ("G3", 1.0), ("D4", 1.0), ("G3", 1.0), ("D4", 1.0),
                     ("E3", 1.0), ("B3", 1.0), ("E3", 1.0), ("G3", 1.0),
@@ -152,7 +200,7 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("F3", 1.0), ("C4", 1.0), ("G3", 1.0), ("D4", 1.0),
-                    ("E3", 1.0), ("B3", 1.0), ("A2", 1.0), ("E3", 1.0),
+                    ("E3", 1.0), ("B3", 1.0), ("A3", 1.0), ("E3", 1.0),
                     ("D3", 1.0), ("A3", 1.0), ("G3", 1.0), ("D4", 1.0),
                     ("G3", 1.0), ("B3", 1.0), ("C3", 2.0),
                 ],
@@ -174,10 +222,10 @@ _SONG_DEFS: dict[str, dict] = {
         "bpm": 118,
         "lead_wave": "pulse25",
         "bass_wave": "triangle",
-        "arp_wave": "sine",
-        "lead_vol": 0.088,
-        "bass_vol": 0.072,
-        "arp_vol": 0.038,
+        "arp_wave": "bell",
+        "lead_vol": 0.21,
+        "bass_vol": 0.16,
+        "arp_vol": 0.09,
         "decay": 0.58,
         "sections": [
             (
@@ -189,7 +237,7 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("F3", 1.0), ("C4", 1.0), ("F3", 1.0), ("C4", 1.0),
-                    ("Bb2", 1.0), ("F3", 1.0), ("C3", 1.0), ("G3", 1.0),
+                    ("Bb3", 1.0), ("F3", 1.0), ("C3", 1.0), ("G3", 1.0),
                     ("F3", 1.0), ("A3", 1.0), ("Bb3", 1.0), ("F3", 1.0),
                     ("C3", 1.0), ("G3", 1.0), ("F3", 2.0),
                 ],
@@ -205,8 +253,8 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("D3", 1.0), ("A3", 1.0), ("D3", 1.0), ("A3", 1.0),
-                    ("Bb2", 1.0), ("F3", 1.0), ("Bb2", 1.0), ("F3", 1.0),
-                    ("G2", 1.0), ("D3", 1.0), ("G2", 1.0), ("D3", 1.0),
+                    ("Bb3", 1.0), ("F3", 1.0), ("Bb3", 1.0), ("F3", 1.0),
+                    ("G3", 1.0), ("D4", 1.0), ("G3", 1.0), ("D4", 1.0),
                     ("C3", 1.0), ("G3", 1.0), ("C3", 1.0), ("E3", 1.0),
                 ],
                 _arp([
@@ -226,7 +274,7 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("F3", 1.0), ("C4", 1.0), ("A3", 1.0), ("C4", 1.0),
-                    ("Bb2", 1.0), ("F3", 1.0), ("C3", 1.0), ("G3", 1.0),
+                    ("Bb3", 1.0), ("F3", 1.0), ("C3", 1.0), ("G3", 1.0),
                     ("F3", 1.0), ("A3", 1.0), ("Bb3", 1.0), ("F3", 1.0),
                     ("C3", 1.0), ("G3", 1.0), ("F3", 2.0),
                 ],
@@ -249,9 +297,9 @@ _SONG_DEFS: dict[str, dict] = {
                     ("A4", 0.5), ("G4", 0.5), ("A4", 0.5), ("G4", 0.5), ("F4", 2.0),
                 ],
                 [
-                    ("Bb2", 1.0), ("F3", 1.0), ("C3", 1.0), ("G3", 1.0),
-                    ("A2", 1.0), ("E3", 1.0), ("D3", 1.0), ("A3", 1.0),
-                    ("G2", 1.0), ("D3", 1.0), ("C3", 1.0), ("G3", 1.0),
+                    ("Bb3", 1.0), ("F3", 1.0), ("C3", 1.0), ("G3", 1.0),
+                    ("A3", 1.0), ("E3", 1.0), ("D3", 1.0), ("A3", 1.0),
+                    ("G3", 1.0), ("D4", 1.0), ("C3", 1.0), ("G3", 1.0),
                     ("C3", 1.0), ("E3", 1.0), ("F3", 2.0),
                 ],
                 _arp([
@@ -273,9 +321,9 @@ _SONG_DEFS: dict[str, dict] = {
         "lead_wave": "triangle",
         "bass_wave": "triangle",
         "arp_wave": "pulse25",
-        "lead_vol": 0.098,
-        "bass_vol": 0.072,
-        "arp_vol": 0.032,
+        "lead_vol": 0.23,
+        "bass_vol": 0.16,
+        "arp_vol": 0.085,
         "decay": 0.52,
         "sections": [
             (
@@ -304,7 +352,7 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("E3", 1.0), ("B3", 1.0), ("E3", 1.0), ("B3", 1.0),
                     ("C3", 1.0), ("G3", 1.0), ("C3", 1.0), ("G3", 1.0),
-                    ("A2", 1.0), ("E3", 1.0), ("A2", 1.0), ("E3", 1.0),
+                    ("A3", 1.0), ("E3", 1.0), ("A3", 1.0), ("E3", 1.0),
                     ("D3", 1.0), ("A3", 1.0), ("D3", 1.0), ("F#3", 1.0),
                 ],
                 _arp([
@@ -348,8 +396,8 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("C3", 1.0), ("G3", 1.0), ("D3", 1.0), ("A3", 1.0),
-                    ("B2", 1.0), ("F#3", 1.0), ("E3", 1.0), ("B3", 1.0),
-                    ("A2", 1.0), ("E3", 1.0), ("D3", 1.0), ("A3", 1.0),
+                    ("B3", 1.0), ("F#3", 1.0), ("E3", 1.0), ("B3", 1.0),
+                    ("A3", 1.0), ("E3", 1.0), ("D3", 1.0), ("A3", 1.0),
                     ("D3", 1.0), ("F#3", 1.0), ("G3", 2.0),
                 ],
                 _arp([
@@ -368,13 +416,13 @@ _SONG_DEFS: dict[str, dict] = {
 
     "somber_lullaby": {
         "bpm": 66,
-        "lead_wave": "sine",
+        "lead_wave": "bell",
         "bass_wave": "triangle",
-        "arp_wave": "sine",
-        "lead_vol": 0.095,
-        "bass_vol": 0.065,
-        "arp_vol": 0.036,
-        "decay": 0.72,
+        "arp_wave": "bell",
+        "lead_vol": 0.24,
+        "bass_vol": 0.16,
+        "arp_vol": 0.10,
+        "decay": 0.68,
         "sections": [
             (
                 [
@@ -384,10 +432,10 @@ _SONG_DEFS: dict[str, dict] = {
                     ("E4", 1.5), ("G#4", 0.5), ("A4", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("A2", 2.0), ("E3", 2.0),
+                    ("A3", 2.0), ("E3", 2.0),
                     ("G3", 2.0), ("D3", 2.0),
                     ("F3", 2.0), ("C3", 2.0),
-                    ("E3", 2.0), ("A2", 2.0),
+                    ("E3", 2.0), ("A3", 2.0),
                 ],
                 None,
                 None,
@@ -423,8 +471,8 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("F3", 2.0), ("C3", 2.0),
                     ("G3", 2.0), ("D3", 2.0),
-                    ("A2", 2.0), ("E3", 2.0),
-                    ("A2", 4.0),
+                    ("A3", 2.0), ("E3", 2.0),
+                    ("A3", 4.0),
                 ],
                 _arp([
                     (("F4", "A4", "C5", "A4"), 4.0),
@@ -439,13 +487,13 @@ _SONG_DEFS: dict[str, dict] = {
 
     "somber_moonlight": {
         "bpm": 62,
-        "lead_wave": "sine",
+        "lead_wave": "bell",
         "bass_wave": "triangle",
-        "arp_wave": "sine",
-        "lead_vol": 0.095,
-        "bass_vol": 0.065,
-        "arp_vol": 0.036,
-        "decay": 0.75,
+        "arp_wave": "bell",
+        "lead_vol": 0.24,
+        "bass_vol": 0.16,
+        "arp_vol": 0.10,
+        "decay": 0.70,
         "sections": [
             (
                 [
@@ -457,8 +505,8 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("D3", 2.0), ("A3", 2.0),
                     ("C3", 2.0), ("G3", 2.0),
-                    ("Bb2", 2.0), ("F3", 2.0),
-                    ("A2", 2.0), ("D3", 2.0),
+                    ("Bb3", 2.0), ("F3", 2.0),
+                    ("A3", 2.0), ("D3", 2.0),
                 ],
                 None,
                 None,
@@ -473,8 +521,8 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("G3", 2.0), ("D3", 2.0),
                     ("F3", 2.0), ("C3", 2.0),
-                    ("Bb2", 2.0), ("F3", 2.0),
-                    ("A2", 2.0), ("E3", 2.0),
+                    ("Bb3", 2.0), ("F3", 2.0),
+                    ("A3", 2.0), ("E3", 2.0),
                 ],
                 _arp([
                     (("G4", "Bb4", "D5", "Bb4"), 4.0),
@@ -492,9 +540,9 @@ _SONG_DEFS: dict[str, dict] = {
                     ("D4", 3.0), ("R", 1.0),
                 ],
                 [
-                    ("Bb2", 2.0), ("F3", 2.0),
-                    ("C3", 2.0), ("A2", 2.0),
-                    ("G3", 2.0), ("A2", 2.0),
+                    ("Bb3", 2.0), ("F3", 2.0),
+                    ("C3", 2.0), ("A3", 2.0),
+                    ("G3", 2.0), ("A3", 2.0),
                     ("D3", 4.0),
                 ],
                 _arp([
@@ -513,9 +561,9 @@ _SONG_DEFS: dict[str, dict] = {
         "lead_wave": "square",
         "bass_wave": "triangle",
         "arp_wave": "pulse25",
-        "lead_vol": 0.082,
-        "bass_vol": 0.075,
-        "arp_vol": 0.036,
+        "lead_vol": 0.20,
+        "bass_vol": 0.16,
+        "arp_vol": 0.085,
         "decay": 0.48,
         "sections": [
             (
@@ -528,7 +576,7 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("G3", 0.5), ("G4", 0.5), ("G3", 0.5), ("G4", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5),
                     ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5),
-                    ("E3", 0.5), ("E4", 0.5), ("B2", 0.5), ("B3", 0.5), ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5),
+                    ("E3", 0.5), ("E4", 0.5), ("B3", 0.5), ("B3", 0.5), ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5),
                     ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5), ("G3", 1.0), ("D3", 1.0),
                 ],
                 None,
@@ -542,10 +590,10 @@ _SONG_DEFS: dict[str, dict] = {
                     ("G5", 0.5), ("A5", 0.5), ("B5", 0.5), ("A5", 0.5), ("F#5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("E3", 0.5), ("E4", 0.5), ("E3", 0.5), ("E4", 0.5), ("E3", 0.5), ("E4", 0.5), ("B2", 0.5), ("E3", 0.5),
+                    ("E3", 0.5), ("E4", 0.5), ("E3", 0.5), ("E4", 0.5), ("E3", 0.5), ("E4", 0.5), ("B3", 0.5), ("E3", 0.5),
                     ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("G3", 0.5), ("C4", 0.5),
                     ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5), ("A3", 0.5), ("D4", 0.5),
-                    ("G3", 0.5), ("D3", 0.5), ("B2", 0.5), ("G3", 0.5), ("D3", 1.0), ("A3", 1.0),
+                    ("G3", 0.5), ("D3", 0.5), ("B3", 0.5), ("G3", 0.5), ("D3", 1.0), ("A3", 1.0),
                 ],
                 _arp([
                     (("E4", "G4", "B4", "G4"), 4.0),
@@ -565,7 +613,7 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("G3", 0.5), ("G4", 0.5), ("G3", 0.5), ("G4", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5),
                     ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5),
-                    ("E3", 0.5), ("E4", 0.5), ("B2", 0.5), ("B3", 0.5), ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5),
+                    ("E3", 0.5), ("E4", 0.5), ("B3", 0.5), ("B3", 0.5), ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5),
                     ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5), ("G3", 1.0), ("D3", 1.0),
                 ],
                 _arp([
@@ -590,7 +638,7 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5),
                     ("E3", 0.5), ("E4", 0.5), ("E3", 0.5), ("E4", 0.5), ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5),
-                    ("A2", 0.5), ("A3", 0.5), ("A2", 0.5), ("A3", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5),
+                    ("A3", 0.5), ("A3", 0.5), ("A3", 0.5), ("A3", 0.5), ("D3", 0.5), ("D4", 0.5), ("D3", 0.5), ("D4", 0.5),
                     ("D3", 0.5), ("F#3", 0.5), ("A3", 0.5), ("D4", 0.5), ("G3", 2.0),
                 ],
                 None,
@@ -604,9 +652,9 @@ _SONG_DEFS: dict[str, dict] = {
         "lead_wave": "pulse25",
         "bass_wave": "triangle",
         "arp_wave": "square",
-        "lead_vol": 0.084,
-        "bass_vol": 0.075,
-        "arp_vol": 0.032,
+        "lead_vol": 0.21,
+        "bass_vol": 0.16,
+        "arp_vol": 0.085,
         "decay": 0.48,
         "sections": [
             (
@@ -619,8 +667,8 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("F#3", 0.5), ("A3", 0.5),
                     ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5),
-                    ("B2", 0.5), ("F#3", 0.5), ("B2", 0.5), ("F#3", 0.5), ("G3", 0.5), ("D4", 0.5), ("E3", 0.5), ("B3", 0.5),
-                    ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5), ("D3", 1.0), ("A2", 1.0),
+                    ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5), ("G3", 0.5), ("D4", 0.5), ("E3", 0.5), ("B3", 0.5),
+                    ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5), ("D3", 1.0), ("A3", 1.0),
                 ],
                 None,
                 "K.H.S.H.K.H.S.H.K.H.S.H.K.H.S.H.",
@@ -633,7 +681,7 @@ _SONG_DEFS: dict[str, dict] = {
                     ("E5", 0.5), ("F#5", 0.5), ("G5", 0.5), ("A5", 0.5), ("A5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("B2", 0.5), ("F#3", 0.5), ("B2", 0.5), ("F#3", 0.5), ("B2", 0.5), ("F#3", 0.5), ("D3", 0.5), ("F#3", 0.5),
+                    ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5), ("D3", 0.5), ("F#3", 0.5),
                     ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("B3", 0.5), ("D4", 0.5),
                     ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("B3", 0.5),
                     ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5), ("A3", 1.0), ("G3", 1.0),
@@ -656,8 +704,8 @@ _SONG_DEFS: dict[str, dict] = {
                 [
                     ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("F#3", 0.5), ("A3", 0.5),
                     ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5),
-                    ("B2", 0.5), ("F#3", 0.5), ("B2", 0.5), ("F#3", 0.5), ("G3", 0.5), ("D4", 0.5), ("E3", 0.5), ("B3", 0.5),
-                    ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5), ("D3", 1.0), ("A2", 1.0),
+                    ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5), ("G3", 0.5), ("D4", 0.5), ("E3", 0.5), ("B3", 0.5),
+                    ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5), ("D3", 1.0), ("A3", 1.0),
                 ],
                 _arp([
                     (("D5", "F#5", "A5", "F#5"), 4.0),
@@ -679,7 +727,7 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("F#3", 0.5), ("C#4", 0.5), ("F#3", 0.5), ("C#4", 0.5),
-                    ("B2", 0.5), ("F#3", 0.5), ("B2", 0.5), ("F#3", 0.5), ("B2", 0.5), ("F#3", 0.5), ("D3", 0.5), ("F#3", 0.5),
+                    ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5), ("D3", 0.5), ("F#3", 0.5),
                     ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("A3", 0.5), ("E4", 0.5), ("A3", 0.5), ("E4", 0.5),
                     ("A3", 0.5), ("C#4", 0.5), ("E4", 0.5), ("A3", 0.5), ("D3", 2.0),
                 ],
@@ -694,9 +742,9 @@ _SONG_DEFS: dict[str, dict] = {
         "lead_wave": "square",
         "bass_wave": "triangle",
         "arp_wave": "pulse25",
-        "lead_vol": 0.084,
-        "bass_vol": 0.078,
-        "arp_vol": 0.036,
+        "lead_vol": 0.21,
+        "bass_vol": 0.16,
+        "arp_vol": 0.085,
         "decay": 0.44,
         "sections": [
             (
@@ -708,9 +756,9 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("B3", 0.5),
-                    ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("B2", 0.5), ("B3", 0.5), ("B2", 0.5), ("B3", 0.5),
-                    ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("D4", 0.5), ("A2", 0.5), ("A3", 0.5), ("B2", 0.5), ("B3", 0.5),
-                    ("C3", 0.5), ("B2", 0.5), ("A2", 0.5), ("B2", 0.5), ("E3", 1.0), ("B2", 1.0),
+                    ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5),
+                    ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E3", 0.5), ("B3", 0.5), ("F#3", 0.5),
+                    ("C3", 0.5), ("B3", 0.5), ("A3", 0.5), ("B3", 0.5), ("E3", 1.0), ("B3", 1.0),
                 ],
                 None,
                 "K.H.S.H.K.K.S.H.K.H.S.H.K.K.S.H.",
@@ -723,10 +771,10 @@ _SONG_DEFS: dict[str, dict] = {
                     ("E5", 0.5), ("F#5", 0.5), ("G5", 0.5), ("A5", 0.5), ("B5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("A2", 0.5), ("A3", 0.5), ("A2", 0.5), ("A3", 0.5), ("A2", 0.5), ("A3", 0.5), ("E3", 0.5), ("A3", 0.5),
+                    ("A3", 0.5), ("E3", 0.5), ("A3", 0.5), ("E3", 0.5), ("A3", 0.5), ("E3", 0.5), ("A3", 0.5), ("E3", 0.5),
                     ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("B3", 0.5),
-                    ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("B2", 0.5), ("B3", 0.5), ("B2", 0.5), ("B3", 0.5),
-                    ("B2", 0.5), ("D#3", 0.5), ("F#3", 0.5), ("A3", 0.5), ("B2", 1.0), ("F#3", 1.0),
+                    ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5),
+                    ("B3", 0.5), ("D#3", 0.5), ("F#3", 0.5), ("A3", 0.5), ("B3", 1.0), ("F#3", 1.0),
                 ],
                 _arp([
                     (("A4", "C5", "E5", "C5"), 4.0),
@@ -745,9 +793,9 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("B3", 0.5),
-                    ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("B2", 0.5), ("B3", 0.5), ("B2", 0.5), ("B3", 0.5),
-                    ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("D4", 0.5), ("A2", 0.5), ("A3", 0.5), ("B2", 0.5), ("B3", 0.5),
-                    ("C3", 0.5), ("B2", 0.5), ("A2", 0.5), ("B2", 0.5), ("E3", 1.0), ("B2", 1.0),
+                    ("C3", 0.5), ("C4", 0.5), ("C3", 0.5), ("C4", 0.5), ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5),
+                    ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E3", 0.5), ("B3", 0.5), ("F#3", 0.5),
+                    ("C3", 0.5), ("B3", 0.5), ("A3", 0.5), ("B3", 0.5), ("E3", 1.0), ("B3", 1.0),
                 ],
                 _arp([
                     (("E4", "G4", "B4", "E5"), 4.0),
@@ -769,9 +817,9 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("C3", 0.5), ("G3", 0.5), ("C3", 0.5), ("G3", 0.5), ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5),
-                    ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("D4", 0.5), ("A2", 0.5), ("E3", 0.5), ("D3", 0.5), ("A3", 0.5),
-                    ("C3", 0.5), ("G3", 0.5), ("A2", 0.5), ("E3", 0.5), ("B2", 0.5), ("F#3", 0.5), ("B2", 0.5), ("F#3", 0.5),
-                    ("B2", 0.5), ("D#3", 0.5), ("F#3", 0.5), ("B2", 0.5), ("E3", 2.0),
+                    ("E3", 0.5), ("B3", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E3", 0.5), ("D3", 0.5), ("A3", 0.5),
+                    ("C3", 0.5), ("G3", 0.5), ("A3", 0.5), ("E3", 0.5), ("B3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("F#3", 0.5),
+                    ("B3", 0.5), ("D#3", 0.5), ("F#3", 0.5), ("B3", 0.5), ("E3", 2.0),
                 ],
                 None,
                 "K.H.S.H.K.K.S.H.K.H.S.H.K.S.K.S.",
@@ -784,9 +832,9 @@ _SONG_DEFS: dict[str, dict] = {
         "lead_wave": "square",
         "bass_wave": "triangle",
         "arp_wave": "pulse25",
-        "lead_vol": 0.084,
-        "bass_vol": 0.078,
-        "arp_vol": 0.036,
+        "lead_vol": 0.21,
+        "bass_vol": 0.16,
+        "arp_vol": 0.085,
         "decay": 0.44,
         "sections": [
             (
@@ -798,7 +846,7 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("C3", 0.5), ("G3", 0.5), ("C3", 0.5), ("G3", 0.5), ("C3", 0.5), ("G3", 0.5), ("Eb3", 0.5), ("G3", 0.5),
-                    ("Bb2", 0.5), ("F3", 0.5), ("Bb2", 0.5), ("F3", 0.5), ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5),
+                    ("Bb3", 0.5), ("F3", 0.5), ("Bb3", 0.5), ("F3", 0.5), ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5),
                     ("C3", 0.5), ("G3", 0.5), ("Eb3", 0.5), ("Bb3", 0.5), ("F3", 0.5), ("C4", 0.5), ("G3", 0.5), ("D4", 0.5),
                     ("Ab3", 0.5), ("G3", 0.5), ("F3", 0.5), ("G3", 0.5), ("C3", 1.0), ("G3", 1.0),
                 ],
@@ -835,7 +883,7 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("C3", 0.5), ("G3", 0.5), ("C3", 0.5), ("G3", 0.5), ("C3", 0.5), ("G3", 0.5), ("Eb3", 0.5), ("G3", 0.5),
-                    ("Bb2", 0.5), ("F3", 0.5), ("Bb2", 0.5), ("F3", 0.5), ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5),
+                    ("Bb3", 0.5), ("F3", 0.5), ("Bb3", 0.5), ("F3", 0.5), ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5),
                     ("C3", 0.5), ("G3", 0.5), ("Eb3", 0.5), ("Bb3", 0.5), ("F3", 0.5), ("C4", 0.5), ("G3", 0.5), ("D4", 0.5),
                     ("Ab3", 0.5), ("G3", 0.5), ("F3", 0.5), ("G3", 0.5), ("C3", 1.0), ("G3", 1.0),
                 ],
@@ -858,7 +906,7 @@ _SONG_DEFS: dict[str, dict] = {
                     ("B4", 0.5), ("D5", 0.5), ("G5", 0.5), ("F5", 0.5), ("C5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("Ab3", 0.5), ("Eb4", 0.5), ("Ab3", 0.5), ("Eb4", 0.5), ("Bb2", 0.5), ("F3", 0.5), ("Bb2", 0.5), ("F3", 0.5),
+                    ("Ab3", 0.5), ("Eb4", 0.5), ("Ab3", 0.5), ("Eb4", 0.5), ("Bb3", 0.5), ("F3", 0.5), ("Bb3", 0.5), ("F3", 0.5),
                     ("C3", 0.5), ("G3", 0.5), ("C3", 0.5), ("G3", 0.5), ("F3", 0.5), ("C4", 0.5), ("F3", 0.5), ("C4", 0.5),
                     ("F3", 0.5), ("C4", 0.5), ("Ab3", 0.5), ("Eb4", 0.5), ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5),
                     ("G3", 0.5), ("B3", 0.5), ("D4", 0.5), ("G3", 0.5), ("C3", 2.0),
@@ -874,9 +922,9 @@ _SONG_DEFS: dict[str, dict] = {
         "lead_wave": "square",
         "bass_wave": "triangle",
         "arp_wave": "pulse25",
-        "lead_vol": 0.088,
-        "bass_vol": 0.080,
-        "arp_vol": 0.038,
+        "lead_vol": 0.22,
+        "bass_vol": 0.17,
+        "arp_vol": 0.09,
         "decay": 0.40,
         "sections": [
             (
@@ -887,10 +935,10 @@ _SONG_DEFS: dict[str, dict] = {
                     ("Bb5", 0.5), ("A5", 0.5), ("G5", 0.5), ("E5", 0.5), ("D5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("A2", 0.5), ("D3", 0.5),
-                    ("Bb2", 0.5), ("Bb3", 0.5), ("Bb2", 0.5), ("Bb3", 0.5), ("A2", 0.5), ("A3", 0.5), ("A2", 0.5), ("A3", 0.5),
-                    ("F3", 0.5), ("C4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A2", 0.5), ("A3", 0.5), ("C#3", 0.5), ("E3", 0.5),
-                    ("Bb2", 0.5), ("A2", 0.5), ("G3", 0.5), ("A2", 0.5), ("D3", 1.0), ("A2", 1.0),
+                    ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("A3", 0.5), ("D3", 0.5),
+                    ("Bb3", 0.5), ("F3", 0.5), ("Bb3", 0.5), ("F3", 0.5), ("A3", 0.5), ("E3", 0.5), ("A3", 0.5), ("E3", 0.5),
+                    ("F3", 0.5), ("C4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E3", 0.5), ("C#3", 0.5), ("E3", 0.5),
+                    ("Bb3", 0.5), ("A3", 0.5), ("G3", 0.5), ("A3", 0.5), ("D3", 1.0), ("A3", 1.0),
                 ],
                 None,
                 "K.HHS.H.K.K.S.H.K.HHS.H.K.K.S.SH",
@@ -904,9 +952,9 @@ _SONG_DEFS: dict[str, dict] = {
                 ],
                 [
                     ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("D3", 0.5), ("G3", 0.5),
-                    ("F3", 0.5), ("C4", 0.5), ("F3", 0.5), ("C4", 0.5), ("E3", 0.5), ("B3", 0.5), ("A2", 0.5), ("E3", 0.5),
-                    ("E3", 0.5), ("G3", 0.5), ("Bb3", 0.5), ("G3", 0.5), ("A2", 0.5), ("C#3", 0.5), ("E3", 0.5), ("A2", 0.5),
-                    ("A2", 0.5), ("E3", 0.5), ("G3", 0.5), ("E3", 0.5), ("A2", 1.0), ("E3", 1.0),
+                    ("F3", 0.5), ("C4", 0.5), ("F3", 0.5), ("C4", 0.5), ("E3", 0.5), ("B3", 0.5), ("A3", 0.5), ("E3", 0.5),
+                    ("E3", 0.5), ("G3", 0.5), ("Bb3", 0.5), ("G3", 0.5), ("A3", 0.5), ("C#3", 0.5), ("E3", 0.5), ("A3", 0.5),
+                    ("A3", 0.5), ("E3", 0.5), ("G3", 0.5), ("E3", 0.5), ("A3", 1.0), ("E3", 1.0),
                 ],
                 _arp([
                     (("G4", "Bb4", "D5", "Bb4"), 4.0),
@@ -924,10 +972,10 @@ _SONG_DEFS: dict[str, dict] = {
                     ("Bb5", 0.5), ("A5", 0.5), ("G5", 0.5), ("E5", 0.5), ("D5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("A2", 0.5), ("D3", 0.5),
-                    ("Bb2", 0.5), ("Bb3", 0.5), ("Bb2", 0.5), ("Bb3", 0.5), ("A2", 0.5), ("A3", 0.5), ("A2", 0.5), ("A3", 0.5),
-                    ("F3", 0.5), ("C4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A2", 0.5), ("A3", 0.5), ("C#3", 0.5), ("E3", 0.5),
-                    ("Bb2", 0.5), ("A2", 0.5), ("G3", 0.5), ("A2", 0.5), ("D3", 1.0), ("A2", 1.0),
+                    ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("D3", 0.5), ("A3", 0.5), ("A3", 0.5), ("D3", 0.5),
+                    ("Bb3", 0.5), ("F3", 0.5), ("Bb3", 0.5), ("F3", 0.5), ("A3", 0.5), ("E3", 0.5), ("A3", 0.5), ("E3", 0.5),
+                    ("F3", 0.5), ("C4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E3", 0.5), ("C#3", 0.5), ("E3", 0.5),
+                    ("Bb3", 0.5), ("A3", 0.5), ("G3", 0.5), ("A3", 0.5), ("D3", 1.0), ("A3", 1.0),
                 ],
                 _arp([
                     (("D5", "F5", "A5", "D6"), 4.0),
@@ -948,10 +996,10 @@ _SONG_DEFS: dict[str, dict] = {
                     ("C#5", 0.5), ("E5", 0.5), ("A5", 0.5), ("G5", 0.5), ("D5", 1.5), ("R", 0.5),
                 ],
                 [
-                    ("Bb2", 1.0), ("Bb2", 1.0), ("C3", 1.0), ("C3", 1.0),
-                    ("D3", 1.0), ("D3", 1.0), ("D3", 0.5), ("C3", 0.5), ("Bb2", 0.5), ("A2", 0.5),
-                    ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A2", 0.5), ("E3", 0.5), ("A2", 0.5), ("E3", 0.5),
-                    ("A2", 0.5), ("C#3", 0.5), ("E3", 0.5), ("A2", 0.5), ("D3", 2.0),
+                    ("Bb3", 1.0), ("Bb3", 1.0), ("C3", 1.0), ("C3", 1.0),
+                    ("D3", 1.0), ("D3", 1.0), ("D3", 0.5), ("C3", 0.5), ("Bb3", 0.5), ("A3", 0.5),
+                    ("G3", 0.5), ("D4", 0.5), ("G3", 0.5), ("D4", 0.5), ("A3", 0.5), ("E3", 0.5), ("A3", 0.5), ("E3", 0.5),
+                    ("A3", 0.5), ("C#3", 0.5), ("E3", 0.5), ("A3", 0.5), ("D3", 2.0),
                 ],
                 None,
                 "K...S...K...S...K.H.S.H.K.S.K.S.",
@@ -989,51 +1037,41 @@ def _gen_tone(
     freq: float,
     dur_ms: int,
     wave: str = "square",
-    vol: float = 0.20,
+    vol: float = 0.24,
     slide_to: float | None = None,
     decay: bool = True,
 ) -> array:
-    """Synthesizes a smoothed 16-bit tone matching the mixer's rate and channels."""
+    """Synthesizes a clean band-limited 16-bit tone matching mixer rate and channels."""
     rate = _MIXER_RATE
     ch = _MIXER_CH
     n = max(1, int(rate * dur_ms / 1000))
     buf = array("h")
     phase = 0.0
-    filt = 0.0
     rng = random.Random(int(freq) + dur_ms)
+    tbl = _WAVETABLES.get(wave, _WAVETABLES["sine"])
+    wt_over_rate = _WT_SIZE / rate
+    mask = _WT_MASK
+    is_noise = wave == "noise"
+    filt = 0.0
     attack = max(1, int(rate * 0.003))
     release = max(1, int(rate * 0.004))
 
     for i in range(n):
         t = i / n
         if freq <= 0:
+            buf.append(0)
             if ch == 2:
-                buf.append(0)
-                buf.append(0)
-            else:
                 buf.append(0)
             continue
 
         cur_f = freq + (slide_to - freq) * t if slide_to is not None else freq
-        phase += cur_f / rate
-        frac = phase - math.floor(phase)
-
-        if wave == "square":
-            raw = 1.0 if frac < 0.5 else -1.0
-            filt += 0.32 * (raw - filt)
-            raw = filt
-        elif wave == "pulse25":
-            raw = 1.0 if frac < 0.25 else -1.0
-            filt += 0.32 * (raw - filt)
-            raw = filt
-        elif wave == "triangle":
-            raw = 4.0 * abs(frac - 0.5) - 1.0
-        elif wave == "noise":
+        if is_noise:
             raw = rng.uniform(-1.0, 1.0)
             filt += 0.45 * (raw - filt)
             raw = filt
         else:
-            raw = math.sin(2.0 * math.pi * phase)
+            phase += cur_f * wt_over_rate
+            raw = tbl[int(phase) & mask]
 
         env = (1.0 - t * 0.85) if decay else 1.0
         if i < attack:
@@ -1041,10 +1079,8 @@ def _gen_tone(
         elif i > n - release:
             env *= (n - i) / release
         sample = int(max(-1.0, min(1.0, raw * vol * env)) * 28000)
+        buf.append(sample)
         if ch == 2:
-            buf.append(sample)
-            buf.append(sample)
-        else:
             buf.append(sample)
     return buf
 
@@ -1055,48 +1091,43 @@ def _seq(steps: list[tuple]) -> pygame.mixer.Sound:
         freq = step[0]
         dur_ms = step[1]
         wave = step[2] if len(step) > 2 else "square"
-        vol = step[3] if len(step) > 3 else 0.20
+        vol = step[3] if len(step) > 3 else 0.24
         slide_to = step[4] if len(step) > 4 else None
         out.extend(_gen_tone(freq, dur_ms, wave=wave, vol=vol, slide_to=slide_to))
     return pygame.mixer.Sound(buffer=out.tobytes())
 
 
 def _build_drum_samples(bgm_rate: float) -> dict[str, list[int]]:
-    """Pre-generates pocket-speaker-friendly retro drum hits at bgm_rate."""
     two_pi = 2.0 * math.pi
     rng = random.Random(77)
 
-    # Tight punchy kick (180Hz -> 95Hz so 1W speaker stays crisp, never muddy)
-    kn = max(1, int(bgm_rate * 0.058))
+    kn = max(1, int(bgm_rate * 0.055))
     kick: list[int] = []
     phase = 0.0
     for i in range(kn):
         t = i / kn
-        f = 180.0 * (1.0 - t) + 95.0 * t
+        f = 190.0 * (1.0 - t) + 110.0 * t
         phase += f / bgm_rate
         env = (1.0 - t) ** 1.7
-        kick.append(int(math.sin(two_pi * phase) * 0.062 * env * 28000))
+        kick.append(int(math.sin(two_pi * phase) * 0.14 * env * 28000))
 
-    # Crisp snare
-    sn = max(1, int(bgm_rate * 0.055))
+    sn = max(1, int(bgm_rate * 0.052))
     snare: list[int] = []
     phase = 0.0
     filt = 0.0
     for i in range(sn):
         t = i / sn
-        phase += 240.0 / bgm_rate
+        phase += 250.0 / bgm_rate
         env = (1.0 - t) ** 1.8
         raw = rng.uniform(-0.65, 0.65) + 0.35 * math.sin(two_pi * phase)
         filt += 0.55 * (raw - filt)
-        snare.append(int(filt * 0.050 * env * 28000))
+        snare.append(int(filt * 0.11 * env * 28000))
 
-    # Hi-hat
     hn = max(1, int(bgm_rate * 0.020))
-    hat = [int(rng.uniform(-1.0, 1.0) * 0.022 * (1.0 - i / hn) * 28000) for i in range(hn)]
+    hat = [int(rng.uniform(-1.0, 1.0) * 0.055 * (1.0 - i / hn) * 28000) for i in range(hn)]
 
-    # Soft day tick
     tn = max(1, int(bgm_rate * 0.015))
-    tick = [int(rng.uniform(-1.0, 1.0) * 0.014 * (1.0 - i / tn) * 28000) for i in range(tn)]
+    tick = [int(rng.uniform(-1.0, 1.0) * 0.035 * (1.0 - i / tn) * 28000) for i in range(tn)]
 
     return {"K": kick, "S": snare, "H": hat, "T": tick}
 
@@ -1111,15 +1142,13 @@ def _add_voice_into(
     bgm_rate: float,
     min_hz: float = 0.0,
 ) -> None:
-    """Mixes one smoothed melodic voice into a section buffer at bgm_rate."""
-    two_pi = 2.0 * math.pi
-    sin_fn = math.sin
+    """Fast wavetable voice mixer with zero aliasing."""
+    tbl = _WAVETABLES.get(wave, _WAVETABLES["sine"])
     mix_len = len(mix)
     beat_cursor = 0.0
     scale = vol * 28000.0
-    is_sq = wave == "square"
-    is_p25 = wave == "pulse25"
-    is_tri = wave == "triangle"
+    wt_over_rate = _WT_SIZE / bgm_rate
+    mask = _WT_MASK
 
     for note_name, beats in notes:
         start_i = int(round(beat_cursor * beat_sec * bgm_rate))
@@ -1136,59 +1165,21 @@ def _add_voice_into(
             while freq < min_hz:
                 freq *= 2.0
 
-        step = freq / bgm_rate
+        step = freq * wt_over_rate
         phase = 0.0
-        filt = 0.0
-        fade_in = min(45, n // 4) or 1
-        fade_out = min(65, n // 4) or 1
+        fade_in = min(40, n // 4) or 1
+        fade_out = min(60, n // 4) or 1
         inv_n = 1.0 / n
 
-        if is_sq:
-            for j in range(n):
-                phase += step
-                frac = phase - int(phase)
-                raw = 1.0 if frac < 0.5 else -1.0
-                filt += 0.36 * (raw - filt)
-                env = 1.0 - (j * inv_n) * decay
-                if j < fade_in:
-                    env *= j / fade_in
-                elif j > n - fade_out:
-                    env *= (n - j) / fade_out
-                mix[start_i + j] += int(filt * scale * env)
-        elif is_p25:
-            for j in range(n):
-                phase += step
-                frac = phase - int(phase)
-                raw = 1.0 if frac < 0.25 else -1.0
-                filt += 0.36 * (raw - filt)
-                env = 1.0 - (j * inv_n) * decay
-                if j < fade_in:
-                    env *= j / fade_in
-                elif j > n - fade_out:
-                    env *= (n - j) / fade_out
-                mix[start_i + j] += int(filt * scale * env)
-        elif is_tri:
-            for j in range(n):
-                phase += step
-                frac = phase - int(phase)
-                raw = 4.0 * abs(frac - 0.5) - 1.0
-                env = 1.0 - (j * inv_n) * decay
-                if j < fade_in:
-                    env *= j / fade_in
-                elif j > n - fade_out:
-                    env *= (n - j) / fade_out
-                mix[start_i + j] += int(raw * scale * env)
-        else:
-            for j in range(n):
-                phase += step
-                frac = phase - int(phase)
-                raw = sin_fn(two_pi * frac)
-                env = 1.0 - (j * inv_n) * decay
-                if j < fade_in:
-                    env *= j / fade_in
-                elif j > n - fade_out:
-                    env *= (n - j) / fade_out
-                mix[start_i + j] += int(raw * scale * env)
+        for j in range(n):
+            phase += step
+            raw = tbl[int(phase) & mask]
+            env = 1.0 - (j * inv_n) * decay
+            if j < fade_in:
+                env *= j / fade_in
+            elif j > n - fade_out:
+                env *= (n - j) / fade_out
+            mix[start_i + j] += int(raw * scale * env)
 
 
 def _add_drums_into(mix: list[int], pattern: str, beat_sec: float, bgm_rate: float) -> None:
@@ -1204,7 +1195,7 @@ def _add_drums_into(mix: list[int], pattern: str, beat_sec: float, bgm_rate: flo
 
 
 def _build_section_bytes(track_name: str, sec_idx: int) -> bytes | None:
-    """Synthesizes one 16-beat section with 2x linear interpolation (no stair-step aliasing)."""
+    """Synthesizes one 16-beat section with smooth 2x linear interpolation."""
     spec = _SONG_DEFS.get(track_name)
     if spec is None or sec_idx < 0 or sec_idx >= len(spec["sections"]):
         return None
@@ -1216,7 +1207,6 @@ def _build_section_bytes(track_name: str, sec_idx: int) -> bytes | None:
 
     mix = [0] * sec_samples
     _add_voice_into(mix, lead_notes, beat_sec, spec["lead_wave"], spec["lead_vol"], spec["decay"], bgm_rate)
-    time.sleep(0.001)
     _add_voice_into(
         mix,
         bass_notes,
@@ -1225,10 +1215,9 @@ def _build_section_bytes(track_name: str, sec_idx: int) -> bytes | None:
         spec["bass_vol"],
         min(0.85, spec["decay"] + 0.1),
         bgm_rate,
-        min_hz=110.0,
+        min_hz=130.0,
     )
     if arp_notes:
-        time.sleep(0.001)
         _add_voice_into(mix, arp_notes, beat_sec, spec["arp_wave"], spec["arp_vol"], 0.65, bgm_rate)
     if drum_pat:
         _add_drums_into(mix, drum_pat, beat_sec, bgm_rate)
@@ -1237,7 +1226,16 @@ def _build_section_bytes(track_name: str, sec_idx: int) -> bytes | None:
     ch = _MIXER_CH
     if _BGM_DIV == 2:
         prev = 0
-        if ch == 2:
+        if ch == 1:
+            for s in mix:
+                if s > 28000:
+                    s = 28000
+                elif s < -28000:
+                    s = -28000
+                out.append((prev + s) >> 1)
+                out.append(s)
+                prev = s
+        else:
             for s in mix:
                 if s > 28000:
                     s = 28000
@@ -1249,23 +1247,13 @@ def _build_section_bytes(track_name: str, sec_idx: int) -> bytes | None:
                 out.append(s)
                 out.append(s)
                 prev = s
-        else:
-            for s in mix:
-                if s > 28000:
-                    s = 28000
-                elif s < -28000:
-                    s = -28000
-                out.append((prev + s) >> 1)
-                out.append(s)
-                prev = s
     else:
-        if ch == 2:
+        if ch == 1:
             for s in mix:
                 if s > 28000:
                     s = 28000
                 elif s < -28000:
                     s = -28000
-                out.append(s)
                 out.append(s)
         else:
             for s in mix:
@@ -1273,13 +1261,13 @@ def _build_section_bytes(track_name: str, sec_idx: int) -> bytes | None:
                     s = 28000
                 elif s < -28000:
                     s = -28000
+                out.append(s)
                 out.append(s)
 
     return out.tobytes()
 
 
 def _worker_loop() -> None:
-    """Single serialized daemon builder so background threads never fight over the GIL."""
     while True:
         _BUILD_EVENT.wait()
         while True:
@@ -1330,8 +1318,8 @@ def _harvest_ready() -> None:
         if key not in _SECTION_CACHE:
             try:
                 _SECTION_CACHE[key] = pygame.mixer.Sound(buffer=raw)
-            except pygame.error:
-                pass
+            except pygame.error as exc:
+                print(f"Z-Pet BGM load error {key}: {exc}")
 
 
 def _pick_next_track(mood: str, avoid: str | None) -> str | None:
@@ -1343,7 +1331,6 @@ def _pick_next_track(mood: str, avoid: str | None) -> str | None:
 
 
 def _schedule_next_section() -> None:
-    """Queues the next section of the active song, or pre-warms the next random track."""
     global _NEED_QUEUE_SEC, _NEXT_RANDOM_TRACK
     if not _PLAYING_TRACK or not _CURRENT_MOOD:
         return
@@ -1360,18 +1347,16 @@ def _schedule_next_section() -> None:
 
     pool = _MOOD_PLAYLISTS.get(_CURRENT_MOOD, [_PLAYING_TRACK])
     if len(pool) == 1:
-        # Single-track mood (Boss): queue section 0 for a gapless infinite loop
         _NEED_QUEUE_SEC = (_PLAYING_TRACK, 0)
         _request_section(_PLAYING_TRACK, 0, urgent=False)
     else:
-        # Multi-track mood: pre-build the next random song's opening section cleanly
         _NEED_QUEUE_SEC = None
         _NEXT_RANDOM_TRACK = _pick_next_track(_CURRENT_MOOD, _PLAYING_TRACK)
         if _NEXT_RANDOM_TRACK:
             _request_section(_NEXT_RANDOM_TRACK, 0, urgent=False)
 
 
-def _play_section_now(track_name: str, sec_idx: int, fade_ms: int = 120) -> None:
+def _play_section_now(track_name: str, sec_idx: int) -> None:
     global _PLAYING_TRACK, _PLAYING_SEC, _QUEUED_SEC, _NEED_PLAY_SEC, _NEED_QUEUE_SEC
     snd = _SECTION_CACHE.get((track_name, sec_idx))
     if snd is None or _BGM_CHANNEL is None or not _MUSIC_ENABLED or not _READY:
@@ -1383,8 +1368,11 @@ def _play_section_now(track_name: str, sec_idx: int, fade_ms: int = 120) -> None
     _NEED_QUEUE_SEC = None
     try:
         _BGM_CHANNEL.stop()
-        _BGM_CHANNEL.play(snd, loops=0, fade_ms=fade_ms)
-    except pygame.error:
+        _BGM_CHANNEL.play(snd, loops=0)
+        if sec_idx == 0:
+            print(f"Z-Pet BGM playing: {track_name}")
+    except pygame.error as exc:
+        print(f"Z-Pet BGM play error: {exc}")
         return
     _schedule_next_section()
 
@@ -1408,8 +1396,19 @@ def _start_random_track(mood: str) -> None:
 
     _harvest_ready()
     if (pick, 0) in _SECTION_CACHE:
-        _play_section_now(pick, 0, fade_ms=140)
+        _play_section_now(pick, 0)
         return
+
+    # On initial startup (empty cache), build section 0 immediately so music begins at once
+    if not _SECTION_CACHE:
+        raw = _build_section_bytes(pick, 0)
+        if raw is not None:
+            try:
+                _SECTION_CACHE[(pick, 0)] = pygame.mixer.Sound(buffer=raw)
+                _play_section_now(pick, 0)
+                return
+            except pygame.error as exc:
+                print(f"Z-Pet BGM startup error: {exc}")
 
     _PLAYING_TRACK = pick
     _PLAYING_SEC = -1
@@ -1417,8 +1416,7 @@ def _start_random_track(mood: str) -> None:
     _NEED_QUEUE_SEC = None
     _NEED_PLAY_SEC = (pick, 0)
     try:
-        if _BGM_CHANNEL.get_busy():
-            _BGM_CHANNEL.fadeout(140)
+        _BGM_CHANNEL.stop()
     except pygame.error:
         pass
     _request_section(pick, 0, urgent=True)
@@ -1426,56 +1424,56 @@ def _start_random_track(mood: str) -> None:
 
 def _build_bank() -> dict[str, pygame.mixer.Sound]:
     return {
-        "click": _seq([(880, 22, "pulse25", 0.16)]),
-        "select": _seq([(660, 40, "square", 0.18), (990, 55, "square", 0.20)]),
-        "back": _seq([(520, 40, "triangle", 0.22), (340, 55, "triangle", 0.20)]),
-        "error": _seq([(180, 70, "square", 0.22), (0, 25), (140, 95, "square", 0.22)]),
-        "feed": _seq([(392, 55, "square", 0.20), (523, 55, "square", 0.20), (659, 85, "square", 0.22)]),
-        "treat": _seq([(587, 45, "pulse25", 0.18), (880, 45, "pulse25", 0.20), (1175, 95, "pulse25", 0.22)]),
-        "clean": _seq([(480, 65, "triangle", 0.24, 960), (620, 80, "triangle", 0.24, 1240)]),
-        "hug": _seq([(523, 55, "triangle", 0.26), (659, 60, "triangle", 0.26), (784, 90, "triangle", 0.26)]),
-        "sleep": _seq([(523, 95, "triangle", 0.22), (440, 95, "triangle", 0.20), (349, 160, "triangle", 0.18)]),
-        "wake": _seq([(440, 65, "triangle", 0.22), (587, 65, "triangle", 0.22), (880, 120, "square", 0.18)]),
-        "catch": _seq([(784, 38, "pulse25", 0.20), (1175, 60, "pulse25", 0.22)]),
-        "mega_catch": _seq([(880, 35, "pulse25", 0.22), (1175, 35, "pulse25", 0.22), (1568, 75, "square", 0.24)]),
-        "combo": _seq([(659, 35, "square", 0.20), (880, 35, "square", 0.22), (1318, 85, "square", 0.24)]),
-        "bolt": _seq([(240, 100, "noise", 0.24), (130, 85, "square", 0.22)]),
-        "drill_perfect": _seq([(784, 45, "pulse25", 0.22), (1046, 50, "square", 0.24), (1568, 95, "square", 0.25)]),
-        "drill_good": _seq([(587, 45, "triangle", 0.24), (880, 75, "triangle", 0.24)]),
-        "drill_miss": _seq([(220, 65, "square", 0.22), (155, 110, "square", 0.22)]),
-        "hit": _seq([(190, 50, "noise", 0.26), (160, 75, "square", 0.22, 95)]),
-        "crit": _seq([(320, 40, "noise", 0.28), (740, 50, "square", 0.24, 220), (180, 90, "noise", 0.24)]),
-        "skill": _seq([(340, 75, "pulse25", 0.22, 920), (920, 95, "square", 0.24, 1320)]),
-        "guard": _seq([(540, 45, "triangle", 0.26), (820, 85, "triangle", 0.24)]),
-        "dodge": _seq([(620, 65, "triangle", 0.22, 1180)]),
-        "heal": _seq([(523, 60, "triangle", 0.22), (659, 60, "triangle", 0.22), (1046, 110, "triangle", 0.24)]),
+        "click": _seq([(880, 22, "pulse25", 0.22)]),
+        "select": _seq([(660, 40, "square", 0.24), (990, 55, "square", 0.26)]),
+        "back": _seq([(520, 40, "triangle", 0.28), (340, 55, "triangle", 0.26)]),
+        "error": _seq([(220, 70, "square", 0.26), (0, 25), (165, 95, "square", 0.26)]),
+        "feed": _seq([(392, 55, "square", 0.25), (523, 55, "square", 0.25), (659, 85, "square", 0.27)]),
+        "treat": _seq([(587, 45, "pulse25", 0.24), (880, 45, "pulse25", 0.26), (1175, 95, "pulse25", 0.28)]),
+        "clean": _seq([(480, 65, "triangle", 0.28, 960), (620, 80, "triangle", 0.28, 1240)]),
+        "hug": _seq([(523, 55, "triangle", 0.30), (659, 60, "triangle", 0.30), (784, 90, "triangle", 0.30)]),
+        "sleep": _seq([(523, 95, "triangle", 0.28), (440, 95, "triangle", 0.26), (349, 160, "triangle", 0.24)]),
+        "wake": _seq([(440, 65, "triangle", 0.28), (587, 65, "triangle", 0.28), (880, 120, "square", 0.24)]),
+        "catch": _seq([(784, 38, "pulse25", 0.26), (1175, 60, "pulse25", 0.28)]),
+        "mega_catch": _seq([(880, 35, "pulse25", 0.28), (1175, 35, "pulse25", 0.28), (1568, 75, "square", 0.30)]),
+        "combo": _seq([(659, 35, "square", 0.26), (880, 35, "square", 0.28), (1318, 85, "square", 0.30)]),
+        "bolt": _seq([(260, 100, "noise", 0.28), (150, 85, "square", 0.26)]),
+        "drill_perfect": _seq([(784, 45, "pulse25", 0.28), (1046, 50, "square", 0.30), (1568, 95, "square", 0.30)]),
+        "drill_good": _seq([(587, 45, "triangle", 0.30), (880, 75, "triangle", 0.30)]),
+        "drill_miss": _seq([(220, 65, "square", 0.26), (165, 110, "square", 0.26)]),
+        "hit": _seq([(210, 50, "noise", 0.30), (180, 75, "square", 0.26, 120)]),
+        "crit": _seq([(320, 40, "noise", 0.32), (740, 50, "square", 0.28, 240), (200, 90, "noise", 0.28)]),
+        "skill": _seq([(340, 75, "pulse25", 0.26, 920), (920, 95, "square", 0.28, 1320)]),
+        "guard": _seq([(540, 45, "triangle", 0.30), (820, 85, "triangle", 0.28)]),
+        "dodge": _seq([(620, 65, "triangle", 0.28, 1180)]),
+        "heal": _seq([(523, 60, "triangle", 0.28), (659, 60, "triangle", 0.28), (1046, 110, "triangle", 0.30)]),
         "boss": _seq([
-            (147, 110, "square", 0.26), (0, 25),
-            (147, 110, "square", 0.26), (0, 25),
-            (139, 130, "square", 0.26), (220, 220, "square", 0.28, 120),
+            (185, 110, "square", 0.30), (0, 25),
+            (185, 110, "square", 0.30), (0, 25),
+            (175, 130, "square", 0.30), (240, 220, "square", 0.32, 140),
         ]),
         "victory": _seq([
-            (523, 75, "square", 0.22), (659, 75, "square", 0.22),
-            (784, 75, "square", 0.22), (1046, 220, "square", 0.26),
+            (523, 75, "square", 0.26), (659, 75, "square", 0.26),
+            (784, 75, "square", 0.26), (1046, 220, "square", 0.30),
         ]),
         "defeat": _seq([
-            (392, 110, "triangle", 0.24), (349, 110, "triangle", 0.22),
-            (311, 120, "triangle", 0.22), (261, 240, "triangle", 0.20),
+            (392, 110, "triangle", 0.28), (349, 110, "triangle", 0.26),
+            (311, 120, "triangle", 0.26), (261, 240, "triangle", 0.24),
         ]),
         "level_up": _seq([
-            (523, 60, "pulse25", 0.22), (659, 60, "pulse25", 0.22),
-            (784, 60, "pulse25", 0.22), (1046, 80, "square", 0.24), (1318, 170, "square", 0.24),
+            (523, 60, "pulse25", 0.26), (659, 60, "pulse25", 0.26),
+            (784, 60, "pulse25", 0.26), (1046, 80, "square", 0.28), (1318, 170, "square", 0.28),
         ]),
         "evolve": _seq([
-            (392, 75, "pulse25", 0.22), (494, 75, "pulse25", 0.22), (587, 75, "pulse25", 0.22),
-            (784, 90, "square", 0.24), (659, 70, "square", 0.22), (784, 85, "square", 0.24),
-            (1046, 260, "square", 0.28),
+            (392, 75, "pulse25", 0.26), (494, 75, "pulse25", 0.26), (587, 75, "pulse25", 0.26),
+            (784, 90, "square", 0.28), (659, 70, "square", 0.26), (784, 85, "square", 0.28),
+            (1046, 260, "square", 0.30),
         ]),
     }
 
 
 def _try_open_mixer() -> tuple[tuple[int, int, int] | None, str]:
-    """Opens a strictly signed-16-bit mixer, preferring 48 kHz PipeWire/Pulse with 4096 buffer on Linux."""
+    """Prefers native 48 kHz mono (1ch) on Cardputer Zero with clean PipeWire/Pulse/ALSA fallback."""
     preset = os.environ.get("SDL_AUDIODRIVER")
     if preset == "dummy":
         os.environ.pop("SDL_AUDIODRIVER", None)
@@ -1488,8 +1486,12 @@ def _try_open_mixer() -> tuple[tuple[int, int, int] | None, str]:
     else:
         drivers = ["pipewire", "pulseaudio", "alsa", None]
 
-    buf_size = 1024 if os.name == "nt" else 4096
-    modes = ((44100, 2), (48000, 2)) if os.name == "nt" else ((48000, 2), (44100, 2), (48000, 1))
+    buf_size = 1024 if os.name == "nt" else 2048
+    modes = (
+        ((44100, 1), (48000, 1), (44100, 2))
+        if os.name == "nt"
+        else ((48000, 1), (44100, 1), (48000, 2), (44100, 2))
+    )
     last_err = ""
 
     for drv in drivers:
@@ -1547,7 +1549,10 @@ def init(sfx_enabled: bool = True, music_enabled: bool = True) -> bool:
         _WORKER_STARTED = True
         threading.Thread(target=_worker_loop, daemon=True).start()
 
-    print(f"Z-Pet audio ready: {_MIXER_RATE}Hz fmt={fmt} {_MIXER_CH}ch (driver={info})")
+    print(
+        f"Z-Pet audio ready: {_MIXER_RATE}Hz fmt={fmt} {_MIXER_CH}ch "
+        f"(driver={info}, sfx={_SFX_ENABLED}, music={_MUSIC_ENABLED})"
+    )
     return True
 
 
@@ -1572,7 +1577,7 @@ def set_music_enabled(enabled: bool) -> None:
         _NEED_QUEUE_SEC = None
         _QUEUED_SEC = None
         try:
-            _BGM_CHANNEL.fadeout(160)
+            _BGM_CHANNEL.stop()
         except pygame.error:
             pass
     elif _CURRENT_MOOD and not _PAUSED_BGM:
@@ -1608,7 +1613,6 @@ def play(name: str) -> None:
 
 
 def set_mood(mood: str, force: bool = False) -> None:
-    """Switches mood playlist only when the mood actually changes."""
     global _CURRENT_MOOD, _PAUSED_BGM
     mood = _LEGACY_MOOD_MAP.get(mood, mood)
     if mood not in _MOOD_PLAYLISTS:
@@ -1636,20 +1640,18 @@ def update() -> None:
 
     _harvest_ready()
 
-    # Waiting for the opening section of a chosen song
     if _NEED_PLAY_SEC is not None:
         if _NEED_PLAY_SEC in _SECTION_CACHE:
-            _play_section_now(_NEED_PLAY_SEC[0], _NEED_PLAY_SEC[1], fade_ms=120)
+            _play_section_now(_NEED_PLAY_SEC[0], _NEED_PLAY_SEC[1])
         return
 
     busy = _BGM_CHANNEL.get_busy()
     if not busy:
-        # If the next section wasn't queued in time, play it now; otherwise pick a new song
         if _NEED_QUEUE_SEC is not None and _NEED_QUEUE_SEC[0] == _PLAYING_TRACK:
             target = _NEED_QUEUE_SEC
             _NEED_QUEUE_SEC = None
             if target in _SECTION_CACHE:
-                _play_section_now(target[0], target[1], fade_ms=0)
+                _play_section_now(target[0], target[1])
             else:
                 _NEED_PLAY_SEC = target
                 _request_section(target[0], target[1], urgent=True)
@@ -1657,13 +1659,11 @@ def update() -> None:
             _start_random_track(_CURRENT_MOOD)
         return
 
-    # Detect when pygame popped our queued section and began playing it
     if _QUEUED_SEC is not None and _BGM_CHANNEL.get_queue() is None:
         _PLAYING_SEC = _QUEUED_SEC
         _QUEUED_SEC = None
         _schedule_next_section()
 
-    # Queue the next section as soon as it finishes building
     if _NEED_QUEUE_SEC is not None and _BGM_CHANNEL.get_queue() is None:
         if _NEED_QUEUE_SEC in _SECTION_CACHE:
             try:
@@ -1682,6 +1682,6 @@ def stop_music() -> None:
     _QUEUED_SEC = None
     if _READY and _BGM_CHANNEL is not None:
         try:
-            _BGM_CHANNEL.fadeout(160)
+            _BGM_CHANNEL.stop()
         except pygame.error:
             pass
