@@ -72,7 +72,7 @@ def prepare_environment() -> bool:
     """Call BEFORE pygame.display.init(). Returns True if direct /dev/fb_lcd mode will be used."""
     if _detect_fb_device() is not None:
         os.environ["SDL_VIDEODRIVER"] = "dummy"
-        os.environ["SDL_AUDIODRIVER"] = "dummy"
+        
         return True
     return False
 

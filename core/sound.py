@@ -1322,13 +1322,24 @@ def _start_random_track(mood: str) -> None:
 
 
 def _try_open_mixer() -> tuple[tuple[int, int, int] | None, str]:
-    """Opens 44.1/48 kHz stereo mixer with Linux PipeWire/Pulse/ALSA fallback."""
+    """Opens 44.1/48 kHz stereo mixer, ignoring 'dummy' and preferring PipeWire/Pulse/ALSA on Linux."""
     preset = os.environ.get("SDL_AUDIODRIVER")
-    drivers = [preset] if preset else [None, "pipewire", "pulseaudio", "alsa"]
-    last_err = ""
+    if preset == "dummy":
+        os.environ.pop("SDL_AUDIODRIVER", None)
+        preset = None
 
+    if preset:
+        drivers = [preset]
+    elif os.name == "nt":
+        drivers = [None]
+    else:
+        drivers = ["pipewire", "pulseaudio", "alsa", None]
+
+    last_err = ""
     for drv in drivers:
-        if drv is not None:
+        if drv is None:
+            os.environ.pop("SDL_AUDIODRIVER", None)
+        else:
             os.environ["SDL_AUDIODRIVER"] = drv
         for freq, ch in ((44100, 2), (48000, 2), (44100, 1)):
             try:
