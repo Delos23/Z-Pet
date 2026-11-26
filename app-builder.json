@@ -1,10 +1,10 @@
 {
   "app_name": "Z-Pet",
   "package_name": "z-pet",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "store": {
-    "summary": "Pocket pixel-art virtual pet with care, sleep, and clock sky",
-    "description": "Raise and care for Sparkkit on your Cardputer Zero. Feed meals and star treats, play ball, clean messes, give hugs to build Bond, and watch the bedroom window shift with the real-time clock while your pet tucks into bed.",
+    "summary": "Pocket pixel-art virtual pet RPG with 35 evolutions, battles & 8-bit audio",
+    "description": "Raise one of 5 customizable pixel-art companions on your Cardputer Zero with 7 coat colors, a clock-synced bedroom window, and a casual 48-hour survival rule. Shape 35 Baby, Teen, and Adult evolutions across Radiant, Trained, and Wild care paths through daily care, Star Catch, and Teach stat drills. Challenge wild Z-Pets and 5-win Elite Bosses in the turn-based Battle Arena to unlock and upgrade a sparkling Boss Crown shelf trophy. Features a built-in 48 kHz mono procedural 8-bit soundtrack, 4-tier SFX/Music volume settings, and live fn+A/S/D hardware volume controls.",
     "icon": "assets/images/z_pet_icon.png",
     "screenshots": [
       "assets/images/screenshot01.png",
@@ -33,5 +33,4 @@
     "license": "MIT",
     "share_code": "ZPET"
   }
-  
 }
