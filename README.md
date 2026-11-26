@@ -86,7 +86,7 @@ Slide across the dock with **`←` / `→`** (`Z` / `C`) and press **`Enter` / `
 
 ## Status Screen & Battle Stats
 
-Open the **Status** icon (Bar Chart) to inspect your pet's RPG profile and live evolution forecast:
+Open the **Status** icon (Bar Chart) to inspect your pet's RPG profile, Arena records, and live evolution forecast:
 
 | Label | Meaning & Combat Role |
 | :---: | :--- |
@@ -98,6 +98,9 @@ Open the **Status** icon (Bar Chart) to inspect your pet's RPG profile and live 
 | **`BND`** | **Bond** — Affection score built through daily care, play, training, and victories (also boosts Bond-scaled healing skills). |
 | **`MST`** | **Care Mistakes** — Logged per hour of severe neglect (`< 15%` stat or 3+ floor messes). |
 | **`TRN`** | **Daily Drills Remaining** — Remaining Teach sessions today (`3/3` max, resets at midnight). |
+| **`BOSS`** | **Elite Boss Wins** — Total 5-win Boss Challenges defeated. |
+| **`BEST`** | **Best Win Streak** — Highest consecutive Battle Arena win streak reached. |
+| **`W`** | **Total Wins** — Lifetime Battle Arena victories. |
 | **`Skill`** | Your pet's active species signature ability (all 35 species have a unique battle skill). |
 
 ---
@@ -105,14 +108,26 @@ Open the **Status** icon (Bar Chart) to inspect your pet's RPG profile and live 
 ## Activities
 
 ### Battle Arena (`Battle`)
-Select the **Crossed Swords** icon (requires awake pet with ≥ `18%` Energy and ≥ `15%` Hunger) to challenge wild Z-Pets scaled to your level (`±1`, Lv. 1–30) and evolution stage (**Babies** at Lv. 1–9, **Teens** at Lv. 10–19, **Adults** at Lv. 20–30).
+Select the **Crossed Swords** icon (requires an awake pet with ≥ `18%` Energy and ≥ `15%` Hunger) to challenge wild Z-Pets scaled to your level (`±1`, Lv. 1–30) and evolution stage (**Babies** at Lv. 1–9, **Teens** at Lv. 10–19, **Adults** at Lv. 20–30).
 
 * **SP System:** Both fighters begin with **`1 SP`** (up to **`3 SP`** shown as gold pips next to the HP bar).
   * **Strike** — Physical attack scaled by `ATK`; generates **`+1 SP`**.
   * **Skill** *(costs `2 SP`)* — Unleashes your species' unique signature ability (priority strikes, DEF-pierce, lifesteal, burns, thorns, reflect barriers, double-hits, heals, stat buffs/debuffs, or low-HP revenge surges). Highlight **Skill** to preview its name on the center bar.
   * **Guard** — Cuts incoming damage in half for the turn, recovers a small amount of HP scaled by `DEF`, and generates **`+1 SP`**.
   * **Flee** — Safely returns to the bedroom.
-* **Rewards & Streaks:** Winning awards level-scaled **XP**, **Bond**, and builds your persistent **Win Streak** (`STRK` / `W`). Losing grants consolation XP and sends your pet home tired instead of fainting them.
+* **Rewards & Streaks:** Winning awards level-scaled **XP**, **Bond**, and builds your persistent **Win Streak** (`STRK` / `W`). Losing resets your current streak and sends your pet home tired with consolation XP instead of fainting them.
+
+#### Elite Boss Challenges (Every 5th Streak Fight)
+Reaching a **4-win streak** flashes a **`NEXT: ELITE BOSS!`** warning—every 5th consecutive match (`#5`, `#10`, `#15`, `#20+`) transforms the Arena into a crimson-gold **Boss Challenge**:
+
+| Boss Tier | Streak Fight | Boss Boosts | Victory Rewards |
+| :---: | :---: | :--- | :--- |
+| **ALPHA** | Fight #5 | Player Lv. `+1`, `+16%` stats, **`1.35×` Max HP**, starts with **`2 SP`** | **`1.75× + 15` Bonus XP**, `+5`–`+9` Bond, **`+2` permanent stat**, `+1 BOSS` win |
+| **APEX** | Fight #10 | Player Lv. `+1`, `+19%` stats, **`1.35×` Max HP**, starts with **`2 SP`** | Same Boss Bonus scaling with higher streak XP |
+| **TITAN** | Fight #15 | Player Lv. `+2`, `+22%` stats, **`1.35×` Max HP**, starts with **`2 SP`** | Same Boss Bonus scaling with higher streak XP |
+| **MYTHIC** | Fight #20+ | Player Lv. `+2`–`+3`, up to `+30%` stats, **`1.35×` Max HP**, **`2 SP`** | Same Boss Bonus scaling with higher streak XP |
+
+Elite Bosses wear a **pixel crown badge** with a pulsing aura, read your `2 SP` charge to Guard defensively, and use their signature skills aggressively. Defeating one permanently boosts a random non-maxed battle stat (`ATK`, `DEF`, `SPD`, or `INT`) by **`+2`**.
 
 ### Star Catch (`Play`)
 A 20-second arcade mini-game: move left and right to catch falling **Gold Stars** (`+1`) and rare **Pink Mega-Stars** (`+3`) while dodging **Storm Bolts** (`-1` & brief stun). Reaching a **5+ catch combo** adds `+1` bonus point per star, and scoring **12+ points** awards a permanent **`+1 SPD`** bonus.

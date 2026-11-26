@@ -22,7 +22,7 @@ STAT_ROWS = [
 
 
 class StatusScene:
-    """Displays species, personality, ability, stats, care mistakes, and live care path."""
+    """Displays species, personality, ability, stats, Arena records, and live care path."""
 
     accepts_text_input = False
 
@@ -46,11 +46,11 @@ class StatusScene:
     def handle_event(self, event: pygame.event.Event) -> tuple[str, dict] | None:
         if event.type != pygame.KEYDOWN:
             return None
-        if event.key in (pygame.K_ESCAPE, pygame.K_q, pygame.K_i, pygame.K_RETURN, pygame.K_SPACE):
-            return ("home", {"pet": self.pet})
-        return None        
         if event.key == pygame.K_g:
             return ("guide", {"return_to": "status", "pet": self.pet})
+        if event.key in (pygame.K_ESCAPE, pygame.K_q, pygame.K_i, pygame.K_RETURN, pygame.K_SPACE):
+            return ("home", {"pet": self.pet})
+        return None
 
     def update(self, dt: float) -> None:
         self.animator.update(dt)
@@ -72,7 +72,7 @@ class StatusScene:
         )
         canvas.blit(lvl_s, (settings.LOGICAL_WIDTH - lvl_s.get_width() - 8, 4))
 
-        # Left pet card (portrait + color + XP bar)
+        # Left pet card (portrait + stage/color + XP bar)
         left_card = pygame.Rect(8, 28, 92, 116)
         pygame.draw.rect(canvas, settings.COLOR_PANEL, left_card, border_radius=5)
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, left_card, 1, border_radius=5)
@@ -98,17 +98,19 @@ class StatusScene:
             pygame.draw.rect(canvas, XP_COL, (16, 129, int(76 * xp_ratio), 6))
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, (16, 129, 76, 6), 1)
 
-        # Right stats & care card
+        # Right stats, Arena records & care card
         right_card = pygame.Rect(106, 28, 206, 116)
         pygame.draw.rect(canvas, settings.COLOR_PANEL, right_card, border_radius=5)
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, right_card, 1, border_radius=5)
 
+        canvas.set_clip(right_card.inflate(-4, -4))
+
         for idx, (stat_k, short_lbl, accent) in enumerate(STAT_ROWS):
-            ry = 33 + idx * 15
+            ry = 31 + idx * 13
             val = int(self.pet.battle_stats.get(stat_k, 5))
             canvas.blit(self.fonts["mono"].render(short_lbl, True, accent), (114, ry))
 
-            bar_x, bar_y, bar_w, bar_h = 148, ry + 4, 122, 7
+            bar_x, bar_y, bar_w, bar_h = 148, ry + 3, 122, 6
             pygame.draw.rect(canvas, BAR_BG, (bar_x, bar_y, bar_w, bar_h))
             fill_w = int(min(1.0, val / 150.0) * bar_w)
             if fill_w > 0:
@@ -118,7 +120,7 @@ class StatusScene:
             val_s = self.fonts["mono"].render(f"{val:3d}", True, settings.COLOR_TEXT)
             canvas.blit(val_s, (276, ry))
 
-        pygame.draw.line(canvas, (72, 54, 108), (114, 95), (304, 95), 1)
+        pygame.draw.line(canvas, (72, 54, 108), (114, 84), (304, 84), 1)
 
         # Care metrics (Bond, Mistakes, Drills left today)
         mst_col = WARN_COL if self.pet.care_mistakes >= 2 else settings.COLOR_MUTED
@@ -127,7 +129,20 @@ class StatusScene:
             True,
             mst_col,
         )
-        canvas.blit(meta_s, (114, 98))
+        canvas.blit(meta_s, (114, 86))
+
+        # Arena records (Boss Wins, Best Streak, Total Wins)
+        boss_wins = int(getattr(self.pet, "boss_wins", 0))
+        best_streak = int(getattr(self.pet, "best_streak", 0))
+        battle_wins = int(getattr(self.pet, "battle_wins", 0))
+
+        boss_s = self.fonts["mono"].render(f"BOSS:{boss_wins}", True, GOLD_COL)
+        best_s = self.fonts["mono"].render(f"BEST:{best_streak}", True, XP_COL)
+        wins_s = self.fonts["mono"].render(f"W:{battle_wins}", True, settings.COLOR_MUTED)
+
+        canvas.blit(boss_s, (114, 99))
+        canvas.blit(best_s, (114 + boss_s.get_width() + 10, 99))
+        canvas.blit(wins_s, (304 - wins_s.get_width(), 99))
 
         # Active signature ability
         ab_txt = f"Skill: {self.pet.ability or 'None'}"
@@ -138,6 +153,8 @@ class StatusScene:
         hint_txt, hint_col = get_evolution_hint(self.pet)
         hint_s = self.fonts["sans"].render(hint_txt, True, hint_col)
         canvas.blit(hint_s, (114, 126))
+
+        canvas.set_clip(None)
 
         # Bottom footer
         pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 148, settings.LOGICAL_WIDTH, 22))
