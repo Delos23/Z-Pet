@@ -13,7 +13,8 @@ HUG_COOLDOWN_SEC = 6.0
 
 MAX_DAILY_TRAINS = 3
 SLEEP_ENERGY_PER_MIN = 1.25
-MAX_LEVEL = 20
+MAX_LEVEL = 30
+MAX_STAT = 150
 
 # Leaving severe needs (<15%) or 3+ poops unattended for 30 sim-minutes adds 1 care mistake
 NEGLECT_MISTAKE_SEC = 30 * 60
@@ -81,7 +82,7 @@ class Pet:
 
     @property
     def xp_to_next(self) -> int:
-        return self.level * 30
+     return 20 + self.level * 25
 
     def _sync_daily_trains(self) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
@@ -163,6 +164,7 @@ class Pet:
         return {
             "care_path": care_path,
             "care_label": care_label,
+            "new_stage": self.stage,
             "old_species_name": old_sp["name"],
             "new_species_name": new_sp["name"],
             "stat_bonus": applied_bonus,

@@ -140,6 +140,7 @@ class EvolveScene:
         pygame.draw.rect(canvas, GOLD_COL, card, 2, border_radius=6)
 
         care_tag = info.get("care_label", "RADIANT").upper()
+        stage_tag = info.get("new_stage", self.pet.stage).upper()
         banner = self.fonts["title"].render(f"{care_tag} EVOLVE!", True, GOLD_COL)
         canvas.blit(banner, ((settings.LOGICAL_WIDTH - banner.get_width()) // 2, 15))
         pygame.draw.line(canvas, (82, 62, 122), (24, 41), (296, 41), 1)

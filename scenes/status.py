@@ -79,7 +79,7 @@ class StatusScene:
         canvas.blit(self.animator.get_frame(), (22, 28))
 
         col_lbl = PET_COLOR_PALETTES.get(self.pet.color, {}).get("label", "Purple")
-        col_s = self.fonts["sans"].render(col_lbl, True, settings.COLOR_MUTED)
+        col_s = self.fonts["sans"].render(f"{self.pet.stage.upper()} {col_lbl}", True, settings.COLOR_MUTED)
         canvas.blit(col_s, (8 + (92 - col_s.get_width()) // 2, 96))
 
         if self.pet.level >= MAX_LEVEL:
@@ -106,15 +106,15 @@ class StatusScene:
             val = int(self.pet.battle_stats.get(stat_k, 5))
             canvas.blit(self.fonts["mono"].render(short_lbl, True, accent), (114, ry))
 
-            bar_x, bar_y, bar_w, bar_h = 148, ry + 4, 126, 7
+            bar_x, bar_y, bar_w, bar_h = 148, ry + 4, 122, 7
             pygame.draw.rect(canvas, BAR_BG, (bar_x, bar_y, bar_w, bar_h))
-            fill_w = int(min(1.0, val / 60.0) * bar_w)
+            fill_w = int(min(1.0, val / 150.0) * bar_w)
             if fill_w > 0:
                 pygame.draw.rect(canvas, accent, (bar_x, bar_y, fill_w, bar_h))
             pygame.draw.rect(canvas, settings.COLOR_ACCENT, (bar_x, bar_y, bar_w, bar_h), 1)
 
-            val_s = self.fonts["mono"].render(f"{val:02d}", True, settings.COLOR_TEXT)
-            canvas.blit(val_s, (282, ry))
+            val_s = self.fonts["mono"].render(f"{val:3d}", True, settings.COLOR_TEXT)
+            canvas.blit(val_s, (276, ry))
 
         pygame.draw.line(canvas, (72, 54, 108), (114, 95), (304, 95), 1)
 

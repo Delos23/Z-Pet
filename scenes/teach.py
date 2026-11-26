@@ -233,15 +233,15 @@ class TeachScene:
                 canvas.blit(name_s, (62, row_y + 4))
 
                 val = int(self.pet.battle_stats.get(stat_key, 5))
-                bar_x, bar_y, bar_w, bar_h = 198, row_y + 8, 70, 8
+                bar_x, bar_y, bar_w, bar_h = 194, row_y + 8, 72, 8
                 pygame.draw.rect(canvas, BAR_BG, (bar_x, bar_y, bar_w, bar_h))
-                fill_w = int(min(1.0, val / 50.0) * bar_w)
+                fill_w = int(min(1.0, val / 150.0) * bar_w)
                 if fill_w > 0:
                     pygame.draw.rect(canvas, accent, (bar_x, bar_y, fill_w, bar_h))
                 pygame.draw.rect(canvas, settings.COLOR_ACCENT, (bar_x, bar_y, bar_w, bar_h), 1)
 
-                val_s = self.fonts["mono"].render(f"{val:02d}", True, settings.COLOR_TEXT)
-                canvas.blit(val_s, (276, row_y + 4))
+                val_s = self.fonts["mono"].render(f"{val:3d}", True, settings.COLOR_TEXT)
+                canvas.blit(val_s, (272, row_y + 4))
 
             self._draw_footer(canvas, "Up/Dn:Stat  Enter:Train  Esc:Back")
 

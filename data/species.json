@@ -1,362 +1,252 @@
 {
   "spark_kit": {
-    "name": "Sparkkit",
-    "default_name": "SPARKKIT",
-    "stage": "baby",
-    "starter": true,
-    "personality": "hyper",
-    "tagline": "Agile Volt Cat",
-    "base_stats": { "atk": 8, "def": 5, "spd": 12, "int": 6 },
-    "growth": { "atk": 2, "def": 1, "spd": 3, "int": 1 },
-    "ability": {
-      "id": "static_pounce",
-      "name": "Static Pounce",
-      "desc": "Quick volt strike that hits first"
-    },
-    "evolutions": {
-      "radiant": "aether_cat",
-      "trained": "volt_lynx",
-      "wild": "storm_claw"
-    }
+    "name": "Sparkkit", "default_name": "SPARKKIT", "stage": "baby", "starter": true, "personality": "hyper", "tagline": "Agile Volt Cat",
+    "base_stats": {"atk": 8, "def": 5, "spd": 12, "int": 6}, "growth": {"atk": 2, "def": 1, "spd": 3, "int": 1},
+    "ability": {"id": "static_pounce", "name": "Static Pounce", "desc": "Quick volt strike that hits first"},
+    "evolutions": {"radiant": "star_lynx", "trained": "jolt_kat", "wild": "feral_volt"}
   },
   "cinder_pup": {
-    "name": "Cinderpup",
-    "default_name": "CINDER",
-    "stage": "baby",
-    "starter": true,
-    "personality": "bold",
-    "tagline": "Bold Ember Pup",
-    "base_stats": { "atk": 11, "def": 8, "spd": 7, "int": 5 },
-    "growth": { "atk": 3, "def": 2, "spd": 1, "int": 1 },
-    "ability": {
-      "id": "ember_bite",
-      "name": "Ember Bite",
-      "desc": "Fiery chomp that scorches foes"
-    },
-    "evolutions": {
-      "radiant": "sol_hound",
-      "trained": "pyro_fang",
-      "wild": "ash_maw"
-    }
+    "name": "Cinderpup", "default_name": "CINDER", "stage": "baby", "starter": true, "personality": "bold", "tagline": "Bold Ember Pup",
+    "base_stats": {"atk": 11, "def": 8, "spd": 7, "int": 5}, "growth": {"atk": 3, "def": 2, "spd": 1, "int": 1},
+    "ability": {"id": "ember_bite", "name": "Ember Bite", "desc": "Fiery chomp that scorches foes"},
+    "evolutions": {"radiant": "sun_pup", "trained": "blaze_hound", "wild": "char_fang"}
   },
   "aqua_fin": {
-    "name": "Aquafin",
-    "default_name": "AQUAFIN",
-    "stage": "baby",
-    "starter": true,
-    "personality": "serene",
-    "tagline": "Clever Sea Sprite",
-    "base_stats": { "atk": 5, "def": 8, "spd": 7, "int": 11 },
-    "growth": { "atk": 1, "def": 2, "spd": 1, "int": 3 },
-    "ability": {
-      "id": "bubble_jet",
-      "name": "Bubble Jet",
-      "desc": "Focused hydro burst using INT"
-    },
-    "evolutions": {
-      "radiant": "coral_shell",
-      "trained": "tide_drake",
-      "wild": "abyss_fin"
-    }
+    "name": "Aquafin", "default_name": "AQUAFIN", "stage": "baby", "starter": true, "personality": "serene", "tagline": "Clever Sea Sprite",
+    "base_stats": {"atk": 5, "def": 8, "spd": 7, "int": 11}, "growth": {"atk": 1, "def": 2, "spd": 1, "int": 3},
+    "ability": {"id": "bubble_jet", "name": "Bubble Jet", "desc": "Focused hydro burst using INT"},
+    "evolutions": {"radiant": "reef_kin", "trained": "wave_crest", "wild": "murk_fin"}
   },
   "sprout_owl": {
-    "name": "Sproutowl",
-    "default_name": "SPROUTOWL",
-    "stage": "baby",
-    "starter": true,
-    "personality": "gentle",
-    "tagline": "Forest Leaf Owl",
-    "base_stats": { "atk": 6, "def": 11, "spd": 6, "int": 8 },
-    "growth": { "atk": 1, "def": 3, "spd": 1, "int": 2 },
-    "ability": {
-      "id": "leaf_flurry",
-      "name": "Leaf Flurry",
-      "desc": "Swirling leaves that weaken DEF"
-    },
-    "evolutions": {
-      "radiant": "bloom_wing",
-      "trained": "iron_bark",
-      "wild": "thorn_beak"
-    }
+    "name": "Sproutowl", "default_name": "SPROUTOWL", "stage": "baby", "starter": true, "personality": "gentle", "tagline": "Forest Leaf Owl",
+    "base_stats": {"atk": 6, "def": 11, "spd": 6, "int": 8}, "growth": {"atk": 1, "def": 3, "spd": 1, "int": 2},
+    "ability": {"id": "leaf_flurry", "name": "Leaf Flurry", "desc": "Swirling leaves that weaken DEF"},
+    "evolutions": {"radiant": "petal_owl", "trained": "bark_wing", "wild": "bramblet"}
   },
   "cog_bit": {
-    "name": "Cogbit",
-    "default_name": "COGBIT",
-    "stage": "baby",
-    "starter": true,
-    "personality": "curious",
-    "tagline": "Clockwork Bat-Bot",
-    "base_stats": { "atk": 7, "def": 7, "spd": 9, "int": 8 },
-    "growth": { "atk": 2, "def": 1, "spd": 2, "int": 2 },
-    "ability": {
-      "id": "logic_ping",
-      "name": "Logic Ping",
-      "desc": "Scans weak spots for crit hits"
-    },
-    "evolutions": {
-      "radiant": "chrono_wing",
-      "trained": "mecha_forge",
-      "wild": "glitch_vex"
-    }
+    "name": "Cogbit", "default_name": "COGBIT", "stage": "baby", "starter": true, "personality": "curious", "tagline": "Clockwork Bat-Bot",
+    "base_stats": {"atk": 7, "def": 7, "spd": 9, "int": 8}, "growth": {"atk": 2, "def": 1, "spd": 2, "int": 2},
+    "ability": {"id": "logic_ping", "name": "Logic Ping", "desc": "Scans weak spots for crit hits"},
+    "evolutions": {"radiant": "gild_bot", "trained": "gear_unit", "wild": "static_bit"}
+  },
+
+  "star_lynx": {
+    "name": "Starlynx", "default_name": "STARLYNX", "stage": "teen", "starter": false, "personality": "hyper", "tagline": "Starlit Teen Cat",
+    "base_stats": {"atk": 10, "def": 11, "spd": 14, "int": 14}, "growth": {"atk": 1, "def": 2, "spd": 2, "int": 3},
+    "evolve_bonus": {"atk": 1, "def": 2, "spd": 2, "int": 3},
+    "ability": {"id": "astral_gleam", "name": "Astral Gleam", "desc": "Dazzling flash that boosts INT"},
+    "evolutions": {"radiant": "aether_cat", "trained": "volt_lynx", "wild": "storm_claw"}
+  },
+  "jolt_kat": {
+    "name": "Joltkat", "default_name": "JOLTKAT", "stage": "teen", "starter": false, "personality": "hyper", "tagline": "Trained Volt Cat",
+    "base_stats": {"atk": 13, "def": 8, "spd": 17, "int": 10}, "growth": {"atk": 3, "def": 1, "spd": 3, "int": 1},
+    "evolve_bonus": {"atk": 2, "def": 1, "spd": 4, "int": 1},
+    "ability": {"id": "spark_dash", "name": "Spark Dash", "desc": "High-speed zigzag lightning hit"},
+    "evolutions": {"radiant": "aether_cat", "trained": "volt_lynx", "wild": "storm_claw"}
+  },
+  "feral_volt": {
+    "name": "Feralvolt", "default_name": "FERALVOLT", "stage": "teen", "starter": false, "personality": "hyper", "tagline": "Scrappy Alley Cat",
+    "base_stats": {"atk": 15, "def": 7, "spd": 16, "int": 9}, "growth": {"atk": 3, "def": 1, "spd": 3, "int": 1},
+    "evolve_bonus": {"atk": 4, "def": 0, "spd": 3, "int": 1},
+    "ability": {"id": "static_swipe", "name": "Static Swipe", "desc": "Wild claw slash with shock risk"},
+    "evolutions": {"radiant": "aether_cat", "trained": "volt_lynx", "wild": "storm_claw"}
+  },
+
+  "sun_pup": {
+    "name": "Sunpup", "default_name": "SUNPUP", "stage": "teen", "starter": false, "personality": "bold", "tagline": "Golden Teen Hound",
+    "base_stats": {"atk": 14, "def": 13, "spd": 11, "int": 11}, "growth": {"atk": 2, "def": 2, "spd": 1, "int": 2},
+    "evolve_bonus": {"atk": 2, "def": 2, "spd": 1, "int": 3},
+    "ability": {"id": "warm_glow", "name": "Warm Glow", "desc": "Radiant flare that mends HP"},
+    "evolutions": {"radiant": "sol_hound", "trained": "pyro_fang", "wild": "ash_maw"}
+  },
+  "blaze_hound": {
+    "name": "Blazehound", "default_name": "BLAZEHOUND", "stage": "teen", "starter": false, "personality": "bold", "tagline": "Trained Fire Hound",
+    "base_stats": {"atk": 16, "def": 11, "spd": 12, "int": 8}, "growth": {"atk": 3, "def": 2, "spd": 2, "int": 1},
+    "evolve_bonus": {"atk": 4, "def": 1, "spd": 2, "int": 1},
+    "ability": {"id": "flame_lunge", "name": "Flame Lunge", "desc": "Fierce lunging fire tackle"},
+    "evolutions": {"radiant": "sol_hound", "trained": "pyro_fang", "wild": "ash_maw"}
+  },
+  "char_fang": {
+    "name": "Charfang", "default_name": "CHARFANG", "stage": "teen", "starter": false, "personality": "bold", "tagline": "Wild Ember Hound",
+    "base_stats": {"atk": 16, "def": 13, "spd": 9, "int": 8}, "growth": {"atk": 3, "def": 2, "spd": 1, "int": 1},
+    "evolve_bonus": {"atk": 3, "def": 3, "spd": 1, "int": 0},
+    "ability": {"id": "smolder_snap", "name": "Smolder Snap", "desc": "Rough chomp fueled by grit"},
+    "evolutions": {"radiant": "sol_hound", "trained": "pyro_fang", "wild": "ash_maw"}
+  },
+
+  "reef_kin": {
+    "name": "Reefkin", "default_name": "REEFKIN", "stage": "teen", "starter": false, "personality": "serene", "tagline": "Crystal Teen Sprite",
+    "base_stats": {"atk": 9, "def": 15, "spd": 9, "int": 14}, "growth": {"atk": 1, "def": 3, "spd": 1, "int": 2},
+    "evolve_bonus": {"atk": 1, "def": 4, "spd": 1, "int": 2},
+    "ability": {"id": "pearl_mist", "name": "Pearl Mist", "desc": "Soothing spray that raises DEF"},
+    "evolutions": {"radiant": "coral_shell", "trained": "tide_drake", "wild": "abyss_fin"}
+  },
+  "wave_crest": {
+    "name": "Wavecrest", "default_name": "WAVECREST", "stage": "teen", "starter": false, "personality": "serene", "tagline": "Swift Sea Teen",
+    "base_stats": {"atk": 10, "def": 11, "spd": 13, "int": 16}, "growth": {"atk": 1, "def": 2, "spd": 2, "int": 3},
+    "evolve_bonus": {"atk": 1, "def": 1, "spd": 3, "int": 3},
+    "ability": {"id": "surge_fin", "name": "Surge Fin", "desc": "Cutting wave driven by INT"},
+    "evolutions": {"radiant": "coral_shell", "trained": "tide_drake", "wild": "abyss_fin"}
+  },
+  "murk_fin": {
+    "name": "Murkfin", "default_name": "MURKFIN", "stage": "teen", "starter": false, "personality": "serene", "tagline": "Deep-Trench Teen",
+    "base_stats": {"atk": 13, "def": 10, "spd": 11, "int": 15}, "growth": {"atk": 2, "def": 1, "spd": 2, "int": 3},
+    "evolve_bonus": {"atk": 3, "def": 1, "spd": 1, "int": 3},
+    "ability": {"id": "trench_bite", "name": "Trench Bite", "desc": "Ambush snap that drains HP"},
+    "evolutions": {"radiant": "coral_shell", "trained": "tide_drake", "wild": "abyss_fin"}
+  },
+
+  "petal_owl": {
+    "name": "Petalowl", "default_name": "PETALOWL", "stage": "teen", "starter": false, "personality": "gentle", "tagline": "Blossom Teen Owl",
+    "base_stats": {"atk": 9, "def": 14, "spd": 11, "int": 14}, "growth": {"atk": 1, "def": 2, "spd": 2, "int": 3},
+    "evolve_bonus": {"atk": 1, "def": 2, "spd": 2, "int": 3},
+    "ability": {"id": "petal_breeze", "name": "Petal Breeze", "desc": "Calming gust that heals HP"},
+    "evolutions": {"radiant": "bloom_wing", "trained": "iron_bark", "wild": "thorn_beak"}
+  },
+  "bark_wing": {
+    "name": "Barkwing", "default_name": "BARKWING", "stage": "teen", "starter": false, "personality": "gentle", "tagline": "Sturdy Wood Owl",
+    "base_stats": {"atk": 12, "def": 17, "spd": 8, "int": 10}, "growth": {"atk": 2, "def": 3, "spd": 1, "int": 2},
+    "evolve_bonus": {"atk": 2, "def": 4, "spd": 1, "int": 1},
+    "ability": {"id": "timber_guard", "name": "Timber Guard", "desc": "Hardens wings to block hits"},
+    "evolutions": {"radiant": "bloom_wing", "trained": "iron_bark", "wild": "thorn_beak"}
+  },
+  "bramblet": {
+    "name": "Bramblet", "default_name": "BRAMBLET", "stage": "teen", "starter": false, "personality": "gentle", "tagline": "Wild Thorn Owl",
+    "base_stats": {"atk": 14, "def": 14, "spd": 10, "int": 9}, "growth": {"atk": 3, "def": 2, "spd": 2, "int": 1},
+    "evolve_bonus": {"atk": 3, "def": 3, "spd": 1, "int": 1},
+    "ability": {"id": "briar_peck", "name": "Briar Peck", "desc": "Thorny strike that leaves barbs"},
+    "evolutions": {"radiant": "bloom_wing", "trained": "iron_bark", "wild": "thorn_beak"}
+  },
+
+  "gild_bot": {
+    "name": "Gildbot", "default_name": "GILDBOT", "stage": "teen", "starter": false, "personality": "curious", "tagline": "Brass Clockwork Bot",
+    "base_stats": {"atk": 11, "def": 11, "spd": 15, "int": 14}, "growth": {"atk": 2, "def": 2, "spd": 3, "int": 2},
+    "evolve_bonus": {"atk": 1, "def": 2, "spd": 3, "int": 2},
+    "ability": {"id": "chime_pulse", "name": "Chime Pulse", "desc": "Harmonic wave that speeds turns"},
+    "evolutions": {"radiant": "chrono_wing", "trained": "mecha_forge", "wild": "glitch_vex"}
+  },
+  "gear_unit": {
+    "name": "Gearunit", "default_name": "GEARUNIT", "stage": "teen", "starter": false, "personality": "curious", "tagline": "Armored Recon Bot",
+    "base_stats": {"atk": 14, "def": 13, "spd": 10, "int": 13}, "growth": {"atk": 3, "def": 2, "spd": 1, "int": 2},
+    "evolve_bonus": {"atk": 3, "def": 2, "spd": 1, "int": 2},
+    "ability": {"id": "target_lock", "name": "Target Lock", "desc": "Precision shot combining ATK/INT"},
+    "evolutions": {"radiant": "chrono_wing", "trained": "mecha_forge", "wild": "glitch_vex"}
+  },
+  "static_bit": {
+    "name": "Staticbit", "default_name": "STATICBIT", "stage": "teen", "starter": false, "personality": "curious", "tagline": "Glitchy Rogue Bot",
+    "base_stats": {"atk": 14, "def": 8, "spd": 16, "int": 12}, "growth": {"atk": 3, "def": 1, "spd": 3, "int": 2},
+    "evolve_bonus": {"atk": 3, "def": 0, "spd": 3, "int": 2},
+    "ability": {"id": "byte_jolt", "name": "Byte Jolt", "desc": "Erratic zap with high crit odds"},
+    "evolutions": {"radiant": "chrono_wing", "trained": "mecha_forge", "wild": "glitch_vex"}
   },
 
   "aether_cat": {
-    "name": "Aethercat",
-    "default_name": "AETHERCAT",
-    "stage": "adult",
-    "starter": false,
-    "personality": "hyper",
-    "tagline": "Astral Mystic",
-    "base_stats": { "atk": 12, "def": 16, "spd": 16, "int": 20 },
-    "growth": { "atk": 1, "def": 3, "spd": 2, "int": 3 },
-    "evolve_bonus": { "atk": 2, "def": 4, "spd": 3, "int": 5 },
-    "ability": {
-      "id": "star_shield",
-      "name": "Star Shield",
-      "desc": "Arcane barrier that counters hits"
-    },
+    "name": "Aethercat", "default_name": "AETHERCAT", "stage": "adult", "starter": false, "personality": "hyper", "tagline": "Astral Mystic",
+    "base_stats": {"atk": 12, "def": 16, "spd": 16, "int": 20}, "growth": {"atk": 1, "def": 3, "spd": 2, "int": 3},
+    "evolve_bonus": {"atk": 2, "def": 4, "spd": 3, "int": 5},
+    "ability": {"id": "star_shield", "name": "Star Shield", "desc": "Arcane barrier that counters hits"},
     "evolutions": {}
   },
   "volt_lynx": {
-    "name": "Voltlynx",
-    "default_name": "VOLTLYNX",
-    "stage": "adult",
-    "starter": false,
-    "personality": "hyper",
-    "tagline": "Lightning Striker",
-    "base_stats": { "atk": 17, "def": 10, "spd": 22, "int": 12 },
-    "growth": { "atk": 3, "def": 1, "spd": 4, "int": 1 },
-    "evolve_bonus": { "atk": 4, "def": 1, "spd": 6, "int": 2 },
-    "ability": {
-      "id": "thunder_fang",
-      "name": "Thunder Fang",
-      "desc": "Blinding bolt that pierces DEF"
-    },
+    "name": "Voltlynx", "default_name": "VOLTLYNX", "stage": "adult", "starter": false, "personality": "hyper", "tagline": "Lightning Striker",
+    "base_stats": {"atk": 17, "def": 10, "spd": 22, "int": 12}, "growth": {"atk": 3, "def": 1, "spd": 4, "int": 1},
+    "evolve_bonus": {"atk": 4, "def": 1, "spd": 6, "int": 2},
+    "ability": {"id": "thunder_fang", "name": "Thunder Fang", "desc": "Blinding bolt that pierces DEF"},
     "evolutions": {}
   },
   "storm_claw": {
-    "name": "Stormclaw",
-    "default_name": "STORMCLAW",
-    "stage": "adult",
-    "starter": false,
-    "personality": "hyper",
-    "tagline": "Feral Thunder Lynx",
-    "base_stats": { "atk": 20, "def": 9, "spd": 20, "int": 11 },
-    "growth": { "atk": 4, "def": 1, "spd": 3, "int": 1 },
-    "evolve_bonus": { "atk": 6, "def": 0, "spd": 5, "int": 1 },
-    "ability": {
-      "id": "wild_surge",
-      "name": "Wild Surge",
-      "desc": "Reckless shock stronger at low HP"
-    },
+    "name": "Stormclaw", "default_name": "STORMCLAW", "stage": "adult", "starter": false, "personality": "hyper", "tagline": "Feral Thunder Lynx",
+    "base_stats": {"atk": 20, "def": 9, "spd": 20, "int": 11}, "growth": {"atk": 4, "def": 1, "spd": 3, "int": 1},
+    "evolve_bonus": {"atk": 6, "def": 0, "spd": 5, "int": 1},
+    "ability": {"id": "wild_surge", "name": "Wild Surge", "desc": "Reckless shock stronger at low HP"},
     "evolutions": {}
   },
 
   "sol_hound": {
-    "name": "Solhound",
-    "default_name": "SOLHOUND",
-    "stage": "adult",
-    "starter": false,
-    "personality": "bold",
-    "tagline": "Radiant Sun Hound",
-    "base_stats": { "atk": 17, "def": 17, "spd": 13, "int": 16 },
-    "growth": { "atk": 3, "def": 3, "spd": 1, "int": 2 },
-    "evolve_bonus": { "atk": 4, "def": 4, "spd": 2, "int": 4 },
-    "ability": {
-      "id": "solar_blessing",
-      "name": "Solar Blessing",
-      "desc": "Heals HP while searing the foe"
-    },
+    "name": "Solhound", "default_name": "SOLHOUND", "stage": "adult", "starter": false, "personality": "bold", "tagline": "Radiant Sun Hound",
+    "base_stats": {"atk": 17, "def": 17, "spd": 13, "int": 16}, "growth": {"atk": 3, "def": 3, "spd": 1, "int": 2},
+    "evolve_bonus": {"atk": 4, "def": 4, "spd": 2, "int": 4},
+    "ability": {"id": "solar_blessing", "name": "Solar Blessing", "desc": "Heals HP while searing the foe"},
     "evolutions": {}
   },
   "pyro_fang": {
-    "name": "Pyrofang",
-    "default_name": "PYROFANG",
-    "stage": "adult",
-    "starter": false,
-    "personality": "bold",
-    "tagline": "Blaze Brawler",
-    "base_stats": { "atk": 22, "def": 14, "spd": 15, "int": 10 },
-    "growth": { "atk": 4, "def": 2, "spd": 2, "int": 1 },
-    "evolve_bonus": { "atk": 6, "def": 2, "spd": 3, "int": 1 },
-    "ability": {
-      "id": "blaze_rush",
-      "name": "Blaze Rush",
-      "desc": "Heavy flaming tackle attack"
-    },
+    "name": "Pyrofang", "default_name": "PYROFANG", "stage": "adult", "starter": false, "personality": "bold", "tagline": "Blaze Brawler",
+    "base_stats": {"atk": 22, "def": 14, "spd": 15, "int": 10}, "growth": {"atk": 4, "def": 2, "spd": 2, "int": 1},
+    "evolve_bonus": {"atk": 6, "def": 2, "spd": 3, "int": 1},
+    "ability": {"id": "blaze_rush", "name": "Blaze Rush", "desc": "Heavy flaming tackle attack"},
     "evolutions": {}
   },
   "ash_maw": {
-    "name": "Ashmaw",
-    "default_name": "ASHMAW",
-    "stage": "adult",
-    "starter": false,
-    "personality": "bold",
-    "tagline": "Scorched Rogue Beast",
-    "base_stats": { "atk": 21, "def": 17, "spd": 11, "int": 10 },
-    "growth": { "atk": 4, "def": 3, "spd": 1, "int": 1 },
-    "evolve_bonus": { "atk": 5, "def": 4, "spd": 2, "int": 0 },
-    "ability": {
-      "id": "cinder_grudge",
-      "name": "Cinder Grudge",
-      "desc": "Hits harder after taking damage"
-    },
+    "name": "Ashmaw", "default_name": "ASHMAW", "stage": "adult", "starter": false, "personality": "bold", "tagline": "Scorched Rogue Beast",
+    "base_stats": {"atk": 21, "def": 17, "spd": 11, "int": 10}, "growth": {"atk": 4, "def": 3, "spd": 1, "int": 1},
+    "evolve_bonus": {"atk": 5, "def": 4, "spd": 2, "int": 0},
+    "ability": {"id": "cinder_grudge", "name": "Cinder Grudge", "desc": "Hits harder after taking damage"},
     "evolutions": {}
   },
 
   "coral_shell": {
-    "name": "Coralshell",
-    "default_name": "CORALSHELL",
-    "stage": "adult",
-    "starter": false,
-    "personality": "serene",
-    "tagline": "Crystal Fortress",
-    "base_stats": { "atk": 11, "def": 21, "spd": 10, "int": 18 },
-    "growth": { "atk": 1, "def": 4, "spd": 1, "int": 3 },
-    "evolve_bonus": { "atk": 1, "def": 6, "spd": 1, "int": 4 },
-    "ability": {
-      "id": "tidal_aegis",
-      "name": "Tidal Aegis",
-      "desc": "Restores HP and hardens shell"
-    },
+    "name": "Coralshell", "default_name": "CORALSHELL", "stage": "adult", "starter": false, "personality": "serene", "tagline": "Crystal Fortress",
+    "base_stats": {"atk": 11, "def": 21, "spd": 10, "int": 18}, "growth": {"atk": 1, "def": 4, "spd": 1, "int": 3},
+    "evolve_bonus": {"atk": 1, "def": 6, "spd": 1, "int": 4},
+    "ability": {"id": "tidal_aegis", "name": "Tidal Aegis", "desc": "Restores HP and hardens shell"},
     "evolutions": {}
   },
   "tide_drake": {
-    "name": "Tidedrake",
-    "default_name": "TIDEDRAKE",
-    "stage": "adult",
-    "starter": false,
-    "personality": "serene",
-    "tagline": "Storm Serpent",
-    "base_stats": { "atk": 13, "def": 13, "spd": 17, "int": 21 },
-    "growth": { "atk": 1, "def": 2, "spd": 3, "int": 3 },
-    "evolve_bonus": { "atk": 2, "def": 2, "spd": 4, "int": 5 },
-    "ability": {
-      "id": "tempest_pulse",
-      "name": "Tempest Pulse",
-      "desc": "Surging wave powered by INT"
-    },
+    "name": "Tidedrake", "default_name": "TIDEDRAKE", "stage": "adult", "starter": false, "personality": "serene", "tagline": "Storm Serpent",
+    "base_stats": {"atk": 13, "def": 13, "spd": 17, "int": 21}, "growth": {"atk": 1, "def": 2, "spd": 3, "int": 3},
+    "evolve_bonus": {"atk": 2, "def": 2, "spd": 4, "int": 5},
+    "ability": {"id": "tempest_pulse", "name": "Tempest Pulse", "desc": "Surging wave powered by INT"},
     "evolutions": {}
   },
   "abyss_fin": {
-    "name": "Abyssfin",
-    "default_name": "ABYSSFIN",
-    "stage": "adult",
-    "starter": false,
-    "personality": "serene",
-    "tagline": "Deep-Sea Lurker",
-    "base_stats": { "atk": 17, "def": 12, "spd": 14, "int": 19 },
-    "growth": { "atk": 3, "def": 1, "spd": 2, "int": 3 },
-    "evolve_bonus": { "atk": 4, "def": 1, "spd": 2, "int": 5 },
-    "ability": {
-      "id": "riptide_drain",
-      "name": "Riptide Drain",
-      "desc": "Siphons rival HP into your own"
-    },
+    "name": "Abyssfin", "default_name": "ABYSSFIN", "stage": "adult", "starter": false, "personality": "serene", "tagline": "Deep-Sea Lurker",
+    "base_stats": {"atk": 17, "def": 12, "spd": 14, "int": 19}, "growth": {"atk": 3, "def": 1, "spd": 2, "int": 3},
+    "evolve_bonus": {"atk": 4, "def": 1, "spd": 2, "int": 5},
+    "ability": {"id": "riptide_drain", "name": "Riptide Drain", "desc": "Siphons rival HP into your own"},
     "evolutions": {}
   },
 
   "bloom_wing": {
-    "name": "Bloomwing",
-    "default_name": "BLOOMWING",
-    "stage": "adult",
-    "starter": false,
-    "personality": "gentle",
-    "tagline": "Blossom Spirit Owl",
-    "base_stats": { "atk": 11, "def": 18, "spd": 14, "int": 19 },
-    "growth": { "atk": 1, "def": 3, "spd": 2, "int": 3 },
-    "evolve_bonus": { "atk": 1, "def": 4, "spd": 3, "int": 5 },
-    "ability": {
-      "id": "pollen_renewal",
-      "name": "Pollen Renewal",
-      "desc": "Restores HP scaled by Bond"
-    },
+    "name": "Bloomwing", "default_name": "BLOOMWING", "stage": "adult", "starter": false, "personality": "gentle", "tagline": "Blossom Spirit Owl",
+    "base_stats": {"atk": 11, "def": 18, "spd": 14, "int": 19}, "growth": {"atk": 1, "def": 3, "spd": 2, "int": 3},
+    "evolve_bonus": {"atk": 1, "def": 4, "spd": 3, "int": 5},
+    "ability": {"id": "pollen_renewal", "name": "Pollen Renewal", "desc": "Restores HP scaled by Bond"},
     "evolutions": {}
   },
   "iron_bark": {
-    "name": "Ironbark",
-    "default_name": "IRONBARK",
-    "stage": "adult",
-    "starter": false,
-    "personality": "gentle",
-    "tagline": "Armored Wood Owl",
-    "base_stats": { "atk": 15, "def": 23, "spd": 10, "int": 12 },
-    "growth": { "atk": 2, "def": 4, "spd": 1, "int": 2 },
-    "evolve_bonus": { "atk": 3, "def": 6, "spd": 1, "int": 2 },
-    "ability": {
-      "id": "bastion_roar",
-      "name": "Bastion Roar",
-      "desc": "Boosts DEF and reflects damage"
-    },
+    "name": "Ironbark", "default_name": "IRONBARK", "stage": "adult", "starter": false, "personality": "gentle", "tagline": "Armored Wood Owl",
+    "base_stats": {"atk": 15, "def": 23, "spd": 10, "int": 12}, "growth": {"atk": 2, "def": 4, "spd": 1, "int": 2},
+    "evolve_bonus": {"atk": 3, "def": 6, "spd": 1, "int": 2},
+    "ability": {"id": "bastion_roar", "name": "Bastion Roar", "desc": "Boosts DEF and reflects damage"},
     "evolutions": {}
   },
   "thorn_beak": {
-    "name": "Thornbeak",
-    "default_name": "THORNBEAK",
-    "stage": "adult",
-    "starter": false,
-    "personality": "gentle",
-    "tagline": "Bramble Stalker",
-    "base_stats": { "atk": 19, "def": 17, "spd": 13, "int": 11 },
-    "growth": { "atk": 3, "def": 3, "spd": 2, "int": 1 },
-    "evolve_bonus": { "atk": 5, "def": 4, "spd": 2, "int": 1 },
-    "ability": {
-      "id": "bramble_snare",
-      "name": "Bramble Snare",
-      "desc": "Thorns deal chip damage each turn"
-    },
+    "name": "Thornbeak", "default_name": "THORNBEAK", "stage": "adult", "starter": false, "personality": "gentle", "tagline": "Bramble Stalker",
+    "base_stats": {"atk": 19, "def": 17, "spd": 13, "int": 11}, "growth": {"atk": 3, "def": 3, "spd": 2, "int": 1},
+    "evolve_bonus": {"atk": 5, "def": 4, "spd": 2, "int": 1},
+    "ability": {"id": "bramble_snare", "name": "Bramble Snare", "desc": "Thorns deal chip damage each turn"},
     "evolutions": {}
   },
 
   "chrono_wing": {
-    "name": "Chronowing",
-    "default_name": "CHRONOWING",
-    "stage": "adult",
-    "starter": false,
-    "personality": "curious",
-    "tagline": "Gilded Time Automaton",
-    "base_stats": { "atk": 14, "def": 14, "spd": 20, "int": 18 },
-    "growth": { "atk": 2, "def": 2, "spd": 3, "int": 3 },
-    "evolve_bonus": { "atk": 2, "def": 2, "spd": 5, "int": 4 },
-    "ability": {
-      "id": "time_skip",
-      "name": "Time Skip",
-      "desc": "Strikes twice in a single turn"
-    },
+    "name": "Chronowing", "default_name": "CHRONOWING", "stage": "adult", "starter": false, "personality": "curious", "tagline": "Gilded Time Automaton",
+    "base_stats": {"atk": 14, "def": 14, "spd": 20, "int": 18}, "growth": {"atk": 2, "def": 2, "spd": 3, "int": 3},
+    "evolve_bonus": {"atk": 2, "def": 2, "spd": 5, "int": 4},
+    "ability": {"id": "time_skip", "name": "Time Skip", "desc": "Strikes twice in a single turn"},
     "evolutions": {}
   },
   "mecha_forge": {
-    "name": "Mechaforge",
-    "default_name": "MECHAFORGE",
-    "stage": "adult",
-    "starter": false,
-    "personality": "curious",
-    "tagline": "Heavy Cyber Unit",
-    "base_stats": { "atk": 19, "def": 17, "spd": 11, "int": 17 },
-    "growth": { "atk": 3, "def": 2, "spd": 1, "int": 3 },
-    "evolve_bonus": { "atk": 5, "def": 3, "spd": 1, "int": 4 },
-    "ability": {
-      "id": "overclock_beam",
-      "name": "Overclock Beam",
-      "desc": "Fuses ATK and INT into a laser"
-    },
+    "name": "Mechaforge", "default_name": "MECHAFORGE", "stage": "adult", "starter": false, "personality": "curious", "tagline": "Heavy Cyber Unit",
+    "base_stats": {"atk": 19, "def": 17, "spd": 11, "int": 17}, "growth": {"atk": 3, "def": 2, "spd": 1, "int": 3},
+    "evolve_bonus": {"atk": 5, "def": 3, "spd": 1, "int": 4},
+    "ability": {"id": "overclock_beam", "name": "Overclock Beam", "desc": "Fuses ATK and INT into a laser"},
     "evolutions": {}
   },
   "glitch_vex": {
-    "name": "Glitchvex",
-    "default_name": "GLITCHVEX",
-    "stage": "adult",
-    "starter": false,
-    "personality": "curious",
-    "tagline": "Rogue Static Phantom",
-    "base_stats": { "atk": 18, "def": 10, "spd": 21, "int": 15 },
-    "growth": { "atk": 3, "def": 1, "spd": 3, "int": 2 },
-    "evolve_bonus": { "atk": 4, "def": 1, "spd": 5, "int": 2 },
-    "ability": {
-      "id": "hex_scramble",
-      "name": "Hex Scramble",
-      "desc": "Scrambles foe stats for chaos hits"
-    },
+    "name": "Glitchvex", "default_name": "GLITCHVEX", "stage": "adult", "starter": false, "personality": "curious", "tagline": "Rogue Static Phantom",
+    "base_stats": {"atk": 18, "def": 10, "spd": 21, "int": 15}, "growth": {"atk": 3, "def": 1, "spd": 3, "int": 2},
+    "evolve_bonus": {"atk": 4, "def": 1, "spd": 5, "int": 2},
+    "ability": {"id": "hex_scramble", "name": "Hex Scramble", "desc": "Scrambles foe stats for chaos hits"},
     "evolutions": {}
   }
 }
