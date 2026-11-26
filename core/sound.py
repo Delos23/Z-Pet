@@ -1,14 +1,17 @@
-"""Procedural 8-bit retro SFX & multi-section randomized BGM engine for Z-Pet."""
-
 from array import array
 from datetime import datetime
 import math
+import os
 import random
 import threading
 import pygame
 
-SAMPLE_RATE = 22050
-HALF_RATE = SAMPLE_RATE // 2
+DEFAULT_SAMPLE_RATE = 44100
+_MIXER_RATE = DEFAULT_SAMPLE_RATE
+_MIXER_CH = 2
+_BGM_DIV = 4
+_BGM_RATE = float(DEFAULT_SAMPLE_RATE // 4)
+_DRUMS: dict[str, list[int]] = {}
 
 _SFX_ENABLED = True
 _MUSIC_ENABLED = True
@@ -1018,19 +1021,27 @@ def _gen_tone(
     slide_to: float | None = None,
     decay: bool = True,
 ) -> array:
-    n = max(1, int(SAMPLE_RATE * dur_ms / 1000))
+    """Synthesizes a 16-bit tone matching the mixer's actual sample rate and channels."""
+    rate = _MIXER_RATE
+    ch = _MIXER_CH
+    n = max(1, int(rate * dur_ms / 1000))
     buf = array("h")
     phase = 0.0
     rng = random.Random(int(freq) + dur_ms)
+    attack = max(1, int(rate * 0.002))
 
     for i in range(n):
         t = i / n
         if freq <= 0:
-            buf.append(0)
+            if ch == 2:
+                buf.append(0)
+                buf.append(0)
+            else:
+                buf.append(0)
             continue
 
         cur_f = freq + (slide_to - freq) * t if slide_to is not None else freq
-        phase += cur_f / SAMPLE_RATE
+        phase += cur_f / rate
         frac = phase - math.floor(phase)
 
         if wave == "square":
@@ -1045,10 +1056,14 @@ def _gen_tone(
             raw = math.sin(2.0 * math.pi * phase)
 
         env = (1.0 - t * 0.85) if decay else 1.0
-        if i < 40:
-            env *= i / 40.0
+        if i < attack:
+            env *= i / attack
         sample = int(max(-1.0, min(1.0, raw * vol * env)) * 32767)
-        buf.append(sample)
+        if ch == 2:
+            buf.append(sample)
+            buf.append(sample)
+        else:
+            buf.append(sample)
     return buf
 
 
@@ -1064,45 +1079,38 @@ def _seq(steps: list[tuple]) -> pygame.mixer.Sound:
     return pygame.mixer.Sound(buffer=out.tobytes())
 
 
-def _build_drum_samples() -> dict[str, list[int]]:
-    """Pre-generates compact retro drum hits at HALF_RATE for fast section mixing."""
+def _build_drum_samples(bgm_rate: float) -> dict[str, list[int]]:
+    """Pre-generates retro drum hits at the active BGM synthesis rate."""
     two_pi = 2.0 * math.pi
     rng = random.Random(77)
 
-    # Kick: fast pitch drop 145Hz -> 42Hz
-    kn = int(HALF_RATE * 0.070)
+    kn = max(1, int(bgm_rate * 0.070))
     kick: list[int] = []
     phase = 0.0
     for i in range(kn):
         t = i / kn
         f = 145.0 * (1.0 - t) + 42.0 * t
-        phase += f / HALF_RATE
+        phase += f / bgm_rate
         env = (1.0 - t) ** 1.6
         kick.append(int(math.sin(two_pi * phase) * 0.075 * env * 32767))
 
-    # Snare: crisp noise burst + 210Hz body
-    sn = int(HALF_RATE * 0.060)
+    sn = max(1, int(bgm_rate * 0.060))
     snare: list[int] = []
     phase = 0.0
     for i in range(sn):
         t = i / sn
-        phase += 210.0 / HALF_RATE
+        phase += 210.0 / bgm_rate
         env = (1.0 - t) ** 1.8
         raw = rng.uniform(-0.7, 0.7) + 0.3 * math.sin(two_pi * phase)
         snare.append(int(raw * 0.055 * env * 32767))
 
-    # Hi-hat: crisp short noise tick
-    hn = int(HALF_RATE * 0.022)
+    hn = max(1, int(bgm_rate * 0.022))
     hat = [int(rng.uniform(-1.0, 1.0) * 0.026 * (1.0 - i / hn) * 32767) for i in range(hn)]
 
-    # Soft day tick: gentle percussive pulse for Day A' lift
-    tn = int(HALF_RATE * 0.016)
+    tn = max(1, int(bgm_rate * 0.016))
     tick = [int(rng.uniform(-1.0, 1.0) * 0.016 * (1.0 - i / tn) * 32767) for i in range(tn)]
 
     return {"K": kick, "S": snare, "H": hat, "T": tick}
-
-
-_DRUMS = _build_drum_samples()
 
 
 def _add_voice_into(
@@ -1112,8 +1120,8 @@ def _add_voice_into(
     wave: str,
     vol: float,
     decay: float,
+    bgm_rate: float,
 ) -> None:
-    """Mixes one melodic voice directly into a fixed-length section buffer."""
     two_pi = 2.0 * math.pi
     sin_fn = math.sin
     mix_len = len(mix)
@@ -1121,9 +1129,9 @@ def _add_voice_into(
     scale = vol * 32767.0
 
     for note_name, beats in notes:
-        start_i = int(round(beat_cursor * beat_sec * HALF_RATE))
+        start_i = int(round(beat_cursor * beat_sec * bgm_rate))
         beat_cursor += beats
-        end_i = min(mix_len, int(round(beat_cursor * beat_sec * HALF_RATE)))
+        end_i = min(mix_len, int(round(beat_cursor * beat_sec * bgm_rate)))
         n = end_i - start_i
         if n <= 0:
             continue
@@ -1132,7 +1140,7 @@ def _add_voice_into(
         if freq <= 0.0:
             continue
 
-        step = freq / HALF_RATE
+        step = freq / bgm_rate
         phase = 0.0
         fade_in = min(30, n // 4) or 1
         fade_out = min(40, n // 4) or 1
@@ -1158,47 +1166,47 @@ def _add_voice_into(
             mix[start_i + j] += int(raw * scale * env)
 
 
-def _add_drums_into(mix: list[int], pattern: str, beat_sec: float) -> None:
+def _add_drums_into(mix: list[int], pattern: str, beat_sec: float, bgm_rate: float) -> None:
     mix_len = len(mix)
     for idx, ch in enumerate(pattern):
         hit = _DRUMS.get(ch)
         if not hit:
             continue
-        start_i = int(round(idx * 0.5 * beat_sec * HALF_RATE))
+        start_i = int(round(idx * 0.5 * beat_sec * bgm_rate))
         limit = min(len(hit), mix_len - start_i)
         for j in range(limit):
             mix[start_i + j] += hit[j]
 
 
 def _build_bgm_bytes(track_name: str) -> bytes | None:
-    """Synthesizes a full multi-section song into 22050 Hz PCM bytes (thread-safe)."""
+    """Synthesizes a full multi-section song matched to the mixer's rate and channels."""
     spec = _SONG_DEFS.get(track_name)
     if spec is None:
         return None
 
+    bgm_rate = _BGM_RATE
+    repeat = _BGM_DIV * _MIXER_CH
     beat_sec = 60.0 / spec["bpm"]
-    sec_samples = max(1, int(round(16.0 * beat_sec * HALF_RATE)))
+    sec_samples = max(1, int(round(16.0 * beat_sec * bgm_rate)))
     out = array("h")
 
     for lead_notes, bass_notes, arp_notes, drum_pat in spec["sections"]:
         mix = [0] * sec_samples
-        _add_voice_into(mix, lead_notes, beat_sec, spec["lead_wave"], spec["lead_vol"], spec["decay"])
+        _add_voice_into(mix, lead_notes, beat_sec, spec["lead_wave"], spec["lead_vol"], spec["decay"], bgm_rate)
         _add_voice_into(
-            mix, bass_notes, beat_sec, spec["bass_wave"], spec["bass_vol"], min(0.85, spec["decay"] + 0.1)
+            mix, bass_notes, beat_sec, spec["bass_wave"], spec["bass_vol"], min(0.85, spec["decay"] + 0.1), bgm_rate
         )
         if arp_notes:
-            _add_voice_into(mix, arp_notes, beat_sec, spec["arp_wave"], spec["arp_vol"], 0.65)
+            _add_voice_into(mix, arp_notes, beat_sec, spec["arp_wave"], spec["arp_vol"], 0.65, bgm_rate)
         if drum_pat:
-            _add_drums_into(mix, drum_pat, beat_sec)
+            _add_drums_into(mix, drum_pat, beat_sec, bgm_rate)
 
         for sample in mix:
             if sample > 32767:
                 sample = 32767
             elif sample < -32767:
                 sample = -32767
-            # Upsample 2x to match the 22050 Hz mixer
-            out.append(sample)
-            out.append(sample)
+            out.extend((sample,) * repeat)
 
     return out.tobytes()
 
@@ -1267,7 +1275,6 @@ def _play_cached_track(track_name: str, mood: str) -> None:
     if bgm is None or _BGM_CHANNEL is None or not _MUSIC_ENABLED or not _READY:
         return
     pool = _MOOD_PLAYLISTS.get(mood, [track_name])
-    # Single-track moods loop continuously; multi-track moods play 1 full ~30-45s pass then shuffle
     loops = -1 if len(pool) == 1 else 0
     _CURRENT_TRACK = track_name
     _DESIRED_TRACK = None
@@ -1279,7 +1286,6 @@ def _play_cached_track(track_name: str, mood: str) -> None:
 
 
 def _start_random_track(mood: str) -> None:
-    """Picks a different random song from the mood pool, building asynchronously if needed."""
     global _DESIRED_TRACK
     pool = _MOOD_PLAYLISTS.get(mood)
     if not pool or not _MUSIC_ENABLED or not _READY or _BGM_CHANNEL is None:
@@ -1302,7 +1308,6 @@ def _start_random_track(mood: str) -> None:
         except pygame.error:
             return
 
-    # Fade out current song smoothly while the new track synthesizes in the background
     _DESIRED_TRACK = pick
     try:
         if _BGM_CHANNEL.get_busy():
@@ -1316,32 +1321,59 @@ def _start_random_track(mood: str) -> None:
             threading.Thread(target=_bg_worker, args=(pick,), daemon=True).start()
 
 
+def _try_open_mixer() -> tuple[tuple[int, int, int] | None, str]:
+    """Opens 44.1/48 kHz stereo mixer with Linux PipeWire/Pulse/ALSA fallback."""
+    preset = os.environ.get("SDL_AUDIODRIVER")
+    drivers = [preset] if preset else [None, "pipewire", "pulseaudio", "alsa"]
+    last_err = ""
+
+    for drv in drivers:
+        if drv is not None:
+            os.environ["SDL_AUDIODRIVER"] = drv
+        for freq, ch in ((44100, 2), (48000, 2), (44100, 1)):
+            try:
+                if pygame.mixer.get_init() is not None:
+                    pygame.mixer.quit()
+                pygame.mixer.init(frequency=freq, size=-16, channels=ch, buffer=1024)
+                cfg = pygame.mixer.get_init()
+                if cfg is not None:
+                    return cfg, drv or "auto"
+            except pygame.error as exc:
+                last_err = str(exc)
+    return None, last_err
+
+
 def init(sfx_enabled: bool = True, music_enabled: bool = True) -> bool:
     global _SFX_ENABLED, _MUSIC_ENABLED, _READY, _SOUNDS, _BGM_CACHE, _BGM_CHANNEL
+    global _MIXER_RATE, _MIXER_CH, _BGM_DIV, _BGM_RATE, _DRUMS
     _SFX_ENABLED = bool(sfx_enabled)
     _MUSIC_ENABLED = bool(music_enabled)
-    try:
-        current = pygame.mixer.get_init()
-        if current != (SAMPLE_RATE, -16, 1):
-            if current is not None:
-                pygame.mixer.quit()
-            pygame.mixer.init(frequency=SAMPLE_RATE, size=-16, channels=1, buffer=512)
-        pygame.mixer.set_num_channels(8)
-        pygame.mixer.set_reserved(1)
-        _BGM_CHANNEL = pygame.mixer.Channel(0)
-        _SOUNDS = _build_bank()
-        _BGM_CACHE = {}
-        _READY = True
-    except pygame.error:
+
+    cfg, info = _try_open_mixer()
+    if cfg is None:
+        print(f"Z-Pet audio disabled: {info}")
         _READY = False
         _SOUNDS = {}
         _BGM_CACHE = {}
         _BGM_CHANNEL = None
-    return _READY
+        return False
+
+    _MIXER_RATE, _fmt, _MIXER_CH = cfg
+    _BGM_DIV = 4 if _MIXER_RATE >= 40000 else (2 if _MIXER_RATE >= 20000 else 1)
+    _BGM_RATE = _MIXER_RATE / _BGM_DIV
+    _DRUMS = _build_drum_samples(_BGM_RATE)
+
+    pygame.mixer.set_num_channels(8)
+    pygame.mixer.set_reserved(1)
+    _BGM_CHANNEL = pygame.mixer.Channel(0)
+    _SOUNDS = _build_bank()
+    _BGM_CACHE = {}
+    _READY = True
+    print(f"Z-Pet audio ready: {_MIXER_RATE}Hz {_MIXER_CH}ch (driver={info})")
+    return True
 
 
 def set_sfx_enabled(enabled: bool) -> None:
-    """Toggles sound effects without disturbing Channel 0 background music."""
     global _SFX_ENABLED
     _SFX_ENABLED = bool(enabled)
     if not _SFX_ENABLED and _READY:
@@ -1353,7 +1385,6 @@ def set_sfx_enabled(enabled: bool) -> None:
 
 
 def set_music_enabled(enabled: bool) -> None:
-    """Toggles background music without disturbing sound effects."""
     global _MUSIC_ENABLED, _DESIRED_TRACK
     _MUSIC_ENABLED = bool(enabled)
     if not _READY or _BGM_CHANNEL is None:
@@ -1397,7 +1428,6 @@ def play(name: str) -> None:
 
 
 def set_mood(mood: str, force: bool = False) -> None:
-    """Switches mood playlist only if the mood actually changed (seamless across scenes)."""
     global _CURRENT_MOOD, _PAUSED_BGM
     mood = _LEGACY_MOOD_MAP.get(mood, mood)
     if mood not in _MOOD_PLAYLISTS:
@@ -1414,12 +1444,10 @@ def set_mood(mood: str, force: bool = False) -> None:
 
 
 def play_music(track_name: str, force: bool = False) -> None:
-    """Routes scene track requests to mood playlists."""
     set_mood(track_name, force=force)
 
 
 def update() -> None:
-    """Picks up finished background builds and shuffles to a new song when a track ends."""
     if not _MUSIC_ENABLED or not _READY or _PAUSED_BGM or not _CURRENT_MOOD or _BGM_CHANNEL is None:
         return
 
@@ -1439,7 +1467,6 @@ def update() -> None:
 
 
 def stop_music() -> None:
-    """Fades out BGM and pauses auto-shuffle until the next set_mood() call."""
     global _PAUSED_BGM, _DESIRED_TRACK
     _PAUSED_BGM = True
     _DESIRED_TRACK = None
