@@ -188,7 +188,7 @@ class DisplayBackend:
                         if pg_key is not None:
                             ev_kind = pygame.KEYDOWN if ev_val == 1 else pygame.KEYUP
                             pygame.event.post(pygame.event.Event(ev_kind, key=pg_key))
-                            pygame.event.post(pygame.event.Event(ev_kind, key=pg_key))
+                        
 
     def present(self, canvas: pygame.Surface) -> None:
         """Pushes the 320x170 canvas to either the PC preview window or /dev/fb_lcd."""
