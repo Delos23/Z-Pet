@@ -1,18 +1,24 @@
 # Z-Pet
 
-A pocket pixel-art virtual pet RPG built for the **M5Stack Cardputer Zero** (`320×170` SPI display) with full PC preview support. Raise one of 5 unique starter companions, customize their coat color and name, train their battle stats, play arcade mini-games, and unlock **35 Baby, Teen, and Adult evolutions** shaped by how you care for them.
+A pocket pixel-art virtual pet RPG built for the **M5Stack Cardputer Zero** (`320×170` SPI display) with full PC preview support. Raise one of 5 unique starter companions, customize their coat color and name, train their battle stats, fight wild Z-Pets in the Battle Arena, and unlock **35 Baby, Teen, and Adult evolutions** shaped by how you care for them.
 
-![Z-Pet Screenshot](assets/images/screenshot01.png)
-![Z-Pet Screenshot](assets/images/screenshot02.png)
-![Z-Pet Screenshot](assets/images/screenshot03.png)
-![Z-Pet Screenshot](assets/images/screenshot04.png)
-![Z-Pet Screenshot](assets/images/screenshot05.png)
-![Z-Pet Screenshot](assets/images/screenshot06.png)
+<p align="center">
+  <img src="assets/images/screenshot01.png" alt="Z-Pet Bedroom & 9-Icon Dock" width="640" />
+</p>
+
+## Gallery
+
+| Title Screen | The Guide |
+| :---: | :---: |
+| ![Title Screen](assets/images/screenshot02.png) | ![The Guide](assets/images/screenshot03.png) |
+| **Star Catch Mini-Game** | **Care-Driven Evolution** |
+| ![Star Catch Mini-Game](assets/images/screenshot04.png) | ![Evolution Ceremony](assets/images/screenshot05.png) |
+
 ---
 
 ## Quick Controls
 
-Z-Pet uses unified directional controls across menus, mini-games, and the bedroom dock—supporting both standard arrow keys and the Cardputer Zero's left-hand cluster:
+Z-Pet uses unified directional controls across menus, mini-games, battles, and the bedroom dock—supporting both standard arrow keys and the Cardputer Zero's left-hand cluster:
 
 | Action | Keys |
 | :--- | :--- |
@@ -36,19 +42,26 @@ Z-Pet uses unified directional controls across menus, mini-games, and the bedroo
   * **`OK`** — Awake and doing fine.
   * **`ZZZ`** — Tucked into bed and recovering Energy.
   * **`MESSx#`** — Floor messes need cleaning.
-  * **`FAINT`** — Pet collapsed from extreme neglect (press `Enter` to hatch a new egg).
+  * **`WEAK`** — Hunger dropped to `5%` or below, or your pet has gone 36+ hours without care.
+  * **`FAINT`** — Pet collapsed after 48 full hours unattended (press `Enter` to hatch a new egg).
 
 ### Care Bars (Top Row)
 Each bar fills from `0%` to `100%` and shifts color by urgency (**Green** ≥ 60%, **Yellow** 30–59%, **Red** below 30%):
 
 | Label | Meaning | How to Restore |
 | :---: | :--- | :--- |
-| **`HG`** | **Hunger** — How full your pet is. Reaching `0%` causes your pet to faint. | Feed a **Meal** (Apple) or **Treat** (Star). |
-| **`HP`** | **Happiness** — Your pet's mood (not Hit Points). Low mood affects care quality. | Play **Star Catch**, give a **Treat**, or **Hug**. |
-| **`EN`** | **Energy** — Stamina used for playing and training drills (needs ≥ 15%). | Put your pet to **Bed** (Moon icon). |
+| **`HG`** | **Hunger** — How full your pet is (~21 hours full-to-empty while awake). Hitting `0%` triggers `WEAK` and Care Mistakes, not instant death. | Feed a **Meal** (Apple) or **Treat** (Star). |
+| **`HP`** | **Happiness** — Your pet's mood (not Battle Hit Points). Low mood affects care quality. | Play **Star Catch**, give a **Treat**, or **Hug**. |
+| **`EN`** | **Energy** — Stamina spent on playing (`15%` min), training (`15%` min), and battling (`18%` min). | Put your pet to **Bed** (Moon icon). |
 | **`CL`** | **Cleanliness** — Drops over time and whenever floor messes appear. | Use **Clean** (Bubbles icon). |
 
-### Bottom Action Dock (8 Icons)
+### 2-Day Unattended Survival Rule
+Z-Pet is tuned for casual pocket-pet play rather than punishing instant deaths:
+* **48-Hour Grace Window:** Your pet only faints if left completely unattended for **2 full days (48 hours)**—tracked across both active sessions and offline time (up to 72 hours of catch-up).
+* **Instant Reset:** Performing **any** care action (Meal, Treat, Play, Train, Battle, Clean, Bed/Wake, or Hug) resets the 48-hour unattended timer back to zero.
+* **Care Mistakes (`MST`):** Leaving `HG`, `HP`, or `CL` below `15%` (or 3+ floor messes uncleaned) for **60+ minutes** adds `+1 MST`, which steers future evolutions toward the **Wild** path without killing your pet.
+
+### Bottom Action Dock (9 Icons)
 Slide across the dock with **`←` / `→`** (`Z` / `C`) and press **`Enter` / `Space`** to trigger the highlighted icon. A floating tooltip names the selected icon, and a **pulsing red dot** flags any stat that needs attention:
 
 | Icon | Action | What It Does |
@@ -57,8 +70,9 @@ Slide across the dock with **`←` / `→`** (`Z` / `C`) and press **`Enter` / `
 | **Golden Star** | **Treat** | Restores `+10` Hunger & `+14` Happiness, builds Bond, and awards XP. |
 | **Striped Ball** | **Play** | Launches the 20-second **Star Catch** mini-game. |
 | **Dumbbell** | **Train** | Opens **Teach** timing drills to permanently raise battle stats. |
+| **Crossed Swords** | **Battle** | Enters the turn-based **Battle Arena** against level-scaled wild Z-Pets. |
 | **Soap Bubbles** | **Clean** | Sweeps away floor messes, restores Cleanliness to `100%`, and awards XP. |
-| **Moon / Sun** | **Bed / Wake** | Walks your pet to bed, tucks them under the covers, and dims the floor lamp. Recharges Energy at `1.25%/min` (~80 min for a full 0→100% rest). Swaps to a **Sun** icon while asleep. |
+| **Moon / Sun** | **Bed / Wake** | Walks your pet to bed, tucks them under the covers, and dims the floor lamp. Recharges Energy at `1.25%/min` (~80 min full rest). Swaps to a **Sun** icon while asleep. |
 | **Heart** | **Hug** | Gives pets & affection (`+6` Happiness; `+3` Bond & XP every 6 seconds). |
 | **Bar Chart** | **Status** | Opens the **Pet Status** profile (XP bar, battle stats, Care Path forecast, and `[G]` shortcut to **The Guide**). |
 
@@ -72,29 +86,39 @@ Slide across the dock with **`←` / `→`** (`Z` / `C`) and press **`Enter` / `
 
 ## Status Screen & Battle Stats
 
-Open the **Status** icon (Bar Chart) to check your pet's full RPG profile:
+Open the **Status** icon (Bar Chart) to inspect your pet's RPG profile and live evolution forecast:
 
-| Label | Meaning |
+| Label | Meaning & Combat Role |
 | :---: | :--- |
-| **`ATK`** | **Attack** — Physical strike power (caps at `150`). |
-| **`DEF`** | **Defense** — Damage reduction & guard strength (caps at `150`). |
-| **`SPD`** | **Speed** — Turn order & agility (caps at `150`). |
-| **`INT`** | **Intelligence** — Special skill & elemental power (caps at `150`). |
-| **`XP`** | **Experience Points** — Earned from feeding, cleaning, hugging, Star Catch, and Teach drills up to **Lv. 30**. |
-| **`BND`** | **Bond** — Affection score built through daily care, play, and training. |
-| **`MST`** | **Care Mistakes** — Logged when Hunger, Happiness, or Cleanliness sits below `15%` (or 3+ messes sit uncleaned) for 30+ minutes. |
-| **`TRN`** | **Daily Drills Remaining** — How many Teach sessions you have left today (`3/3` max, resets at midnight). |
-| **`Skill`** | Your pet's active species signature ability. |
+| **`ATK`** | **Attack** (`max 150`) — Scales standard **Strike** damage and physical signature abilities. |
+| **`DEF`** | **Defense** (`max 150`) — Increases **Max HP** (`55 + Lv×8 + DEF×2`), reduces incoming damage (`60 / (60 + DEF)`), and boosts **Guard** healing. |
+| **`SPD`** | **Speed** (`max 150`) — Determines who acts first each turn, increases **Critical Hit** odds, and adds **Dodge** chance (up to `18%`) against slower rivals. |
+| **`INT`** | **Intelligence** (`max 150`) — Powers elemental/magic & hybrid skills, amplifies all signature abilities, boosts healing skills, and grants up to a `30%` chance to refund **`+1 SP`** after casting. |
+| **`XP`** | **Experience Points** — Earned from care, Star Catch, Teach drills, and Arena fights up to **Lv. 30**. |
+| **`BND`** | **Bond** — Affection score built through daily care, play, training, and victories (also boosts Bond-scaled healing skills). |
+| **`MST`** | **Care Mistakes** — Logged per hour of severe neglect (`< 15%` stat or 3+ floor messes). |
+| **`TRN`** | **Daily Drills Remaining** — Remaining Teach sessions today (`3/3` max, resets at midnight). |
+| **`Skill`** | Your pet's active species signature ability (all 35 species have a unique battle skill). |
 
 ---
 
 ## Activities
 
+### Battle Arena (`Battle`)
+Select the **Crossed Swords** icon (requires awake pet with ≥ `18%` Energy and ≥ `15%` Hunger) to challenge wild Z-Pets scaled to your level (`±1`, Lv. 1–30) and evolution stage (**Babies** at Lv. 1–9, **Teens** at Lv. 10–19, **Adults** at Lv. 20–30).
+
+* **SP System:** Both fighters begin with **`1 SP`** (up to **`3 SP`** shown as gold pips next to the HP bar).
+  * **Strike** — Physical attack scaled by `ATK`; generates **`+1 SP`**.
+  * **Skill** *(costs `2 SP`)* — Unleashes your species' unique signature ability (priority strikes, DEF-pierce, lifesteal, burns, thorns, reflect barriers, double-hits, heals, stat buffs/debuffs, or low-HP revenge surges). Highlight **Skill** to preview its name on the center bar.
+  * **Guard** — Cuts incoming damage in half for the turn, recovers a small amount of HP scaled by `DEF`, and generates **`+1 SP`**.
+  * **Flee** — Safely returns to the bedroom.
+* **Rewards & Streaks:** Winning awards level-scaled **XP**, **Bond**, and builds your persistent **Win Streak** (`STRK` / `W`). Losing grants consolation XP and sends your pet home tired instead of fainting them.
+
 ### Star Catch (`Play`)
-A 20-second arcade mini-game: move left and right to catch falling **Gold Stars** (`+1`) and rare **Pink Mega-Stars** (`+3`) while dodging **Storm Bolts** (`-1` & brief stun). Reaching a **5+ catch combo** adds `+1` bonus point per star, and scoring **12+ points** awards a permanent **`+1 SPD`** bonus!
+A 20-second arcade mini-game: move left and right to catch falling **Gold Stars** (`+1`) and rare **Pink Mega-Stars** (`+3`) while dodging **Storm Bolts** (`-1` & brief stun). Reaching a **5+ catch combo** adds `+1` bonus point per star, and scoring **12+ points** awards a permanent **`+1 SPD`** bonus.
 
 ### Teach Drills (`Train`)
-Choose **ATK**, **DEF**, **SPD**, or **INT** and complete a 3-round timing-bar challenge. Hitting the center gold zone scores **PERFECT** (`+2` pts) and green scores **GOOD** (`+1` pt), granting permanent `+1` to `+3` stat gains, Bond, and XP. Capped at **3 sessions per calendar day** to keep progression balanced.
+Choose **ATK**, **DEF**, **SPD**, or **INT** and complete a 3-round timing-bar challenge. Hitting the center gold zone scores **PERFECT** (`+2` pts) and green scores **GOOD** (`+1` pt), granting permanent `+1` to `+3` stat gains (`+4` on Perfect for Curious pets), Bond, and XP. Capped at **3 sessions per calendar day**.
 
 ---
 
@@ -114,11 +138,11 @@ When starting a **New Pet**, choose from **5 Starter Species**, **7 Base Colors*
 
 ## 3-Stage Care Evolution System (35 Species)
 
-Pets level up from **Lv. 1 to Lv. 30**, evolving automatically when awake at **Lv. 10 (Teen)** and **Lv. 20 (Adult)**. How you raise your pet steers it into one of three distinct forms—and **Teens can still change care paths** before hitting Lv. 20:
+Pets level up from **Lv. 1 to Lv. 30**, evolving automatically when awake at **Lv. 10 (Teen)** and **Lv. 20 (Adult)**. How you raise your pet steers it into one of three distinct forms—and **Teens can still switch care paths** before hitting Lv. 20:
 
 * **Radiant Care:** Attentive, high-Bond care with very few mistakes (**Teen:** 0–1 MST & Bond 20+ · **Adult:** 0–2 MST & Bond 45+).
 * **Trained Care:** Focused on daily Teach drills (**Teen:** 4+ drills & ≤ 2 MST · **Adult:** 9+ drills & ≤ 3 MST).
-* **Wild Care:** Scrappy rogue path triggered by neglect or low Bond/drills (**Teen:** 3+ MST · **Adult:** 5+ MST). Wild forms aren't weak—they evolve into fierce, high-offense specialists!
+* **Wild Care:** Scrappy rogue path triggered by neglect or low Bond/drills (**Teen:** 3+ MST · **Adult:** 5+ MST). Wild forms aren't weak—they evolve into fierce, high-offense specialists.
 
 | Starter (Baby, Lv. 1) | Teen Forms (Lv. 10 — Radiant / Trained / Wild) | Adult Forms (Lv. 20 — Radiant / Trained / Wild) |
 | :--- | :--- | :--- |
@@ -150,7 +174,7 @@ chmod +x deploy/install_launcher.sh deploy/run_zpet.sh
 ./deploy/install_launcher.sh
 ```
 Launch **Z-Pet** directly from **APPLaunch**. Z-Pet renders natively to `/dev/fb_lcd` (even if HDMI is connected) and stores persistent data in `~/.config/z-pet/`:
-* `save.json` — Active pet state & offline time tracking (up to 48 hours).
+* `save.json` — Active pet state, Battle Arena win streaks, and 48-hour survival tracking.
 * `config.json` — User preferences from Settings.
 * `guide.json` — Permanent 35-species discovery progress.
 
