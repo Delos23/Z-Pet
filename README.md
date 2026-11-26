@@ -1,6 +1,6 @@
 # Z-Pet
 
-A pocket pixel-art virtual pet RPG built for the **M5Stack Cardputer Zero** (`320×170` SPI display) with full PC preview support. Raise one of 5 unique starter companions, customize their coat color and name, train their battle stats, fight wild Z-Pets in the Battle Arena, and unlock **35 Baby, Teen, and Adult evolutions** shaped by how you care for them.
+A pocket pixel-art virtual pet RPG built for the **M5Stack Cardputer Zero** (`320×170` SPI display) with full PC preview support. Raise one of 5 unique starter companions, customize their coat color and name, train their battle stats, fight wild Z-Pets and Elite Bosses in the Battle Arena, listen to a built-in procedural 8-bit soundtrack, and unlock **35 Baby, Teen, and Adult evolutions** shaped by how you care for them.
 
 <p align="center">
   <img src="assets/images/screenshot01.png" alt="Z-Pet Bedroom & 9-Icon Dock" width="640" />
@@ -70,11 +70,11 @@ Slide across the dock with **`←` / `→`** (`Z` / `C`) and press **`Enter` / `
 | **Golden Star** | **Treat** | Restores `+10` Hunger & `+14` Happiness, builds Bond, and awards XP. |
 | **Striped Ball** | **Play** | Launches the 20-second **Star Catch** mini-game. |
 | **Dumbbell** | **Train** | Opens **Teach** timing drills to permanently raise battle stats. |
-| **Crossed Swords** | **Battle** | Enters the turn-based **Battle Arena** against level-scaled wild Z-Pets. |
+| **Crossed Swords** | **Battle** | Enters the turn-based **Battle Arena** against wild Z-Pets and Elite Bosses. |
 | **Soap Bubbles** | **Clean** | Sweeps away floor messes, restores Cleanliness to `100%`, and awards XP. |
-| **Moon / Sun** | **Bed / Wake** | Walks your pet to bed, tucks them under the covers, and dims the floor lamp. Recharges Energy at `1.25%/min` (~80 min full rest). Swaps to a **Sun** icon while asleep. |
+| **Moon / Sun** | **Bed / Wake** | Walks your pet to bed, tucks them under the covers, dims the floor lamp, and crossfades to somber lullaby music. Recharges Energy at `1.25%/min` (~80 min full rest). Swaps to a **Sun** icon while asleep. |
 | **Heart** | **Hug** | Gives pets & affection (`+6` Happiness; `+3` Bond & XP every 6 seconds). |
-| **Bar Chart** | **Status** | Opens the **Pet Status** profile (XP bar, battle stats, Care Path forecast, and `[G]` shortcut to **The Guide**). |
+| **Bar Chart** | **Status** | Opens the **Pet Status** profile (XP bar, battle stats, Arena records, Care Path forecast, and `[G]` shortcut to **The Guide**). |
 
 ### Bedroom Details
 * **Clock-Synced Window:** Displays **Dawn**, **Day** (drifting clouds), **Sunset**, or **Night** (twinkling stars & moon) synced to your real-time clock—or locked to any preset in **Settings**.
@@ -137,6 +137,24 @@ Choose **ATK**, **DEF**, **SPD**, or **INT** and complete a 3-round timing-bar c
 
 ---
 
+## Procedural 8-Bit Audio & Soundtrack
+
+Z-Pet includes a zero-asset chiptune audio engine (`core/sound.py`) synthesized directly in memory with Python's `math` and `array` modules plus `pygame.mixer`—no `.wav` or `.ogg` files required, and audio degrades silently if no sound hardware is present.
+
+* **Isolated Channels:** Mixer Channel `0` is reserved for looping background music while Channels `1–7` handle sound effects, so muting either toggle leaves the other unaffected.
+* **Retro Sound Effects (`Sound FX`):** Covers UI navigation (`click`, `select`, `back`, `error`), every care action (`feed`, `treat`, `clean`, `hug`, `sleep`, `wake`), Star Catch cues (`catch`, `mega_catch`, `combo`, `bolt`), Teach timing hits (`drill_perfect`, `drill_good`, `drill_miss`), full Battle Arena feedback (`hit`, `crit`, `skill`, `guard`, `dodge`, `heal`, `boss` intro, `victory`, `defeat`), plus `level_up` and `evolve` fanfares.
+* **Multi-Section Mood Playlists (`Music`):** Full 48–64 beat arrangements (`A → B → A' → C`) with harmony arpeggios and 8-bit percussion, synthesized on a background thread and cached for stutter-free transitions on Cardputer Zero:
+
+| Mood Playlist | Active Scenes | Shuffled Tracks & Vibe |
+| :--- | :--- | :--- |
+| **`day`** | Menus, Status, Guide & Bedroom (Awake / Daytime) | 3 cozy chiptune songs (~32–34s each) that flow seamlessly across menus and the bedroom without restarting. |
+| **`somber`** | Menus & Bedroom (Sleeping, Fainted, or Nighttime `8 PM–5 AM` / `Night` sky) | 2 slow minor-key music-box lullabies (~44–46s each) that crossfade in automatically at bedtime or night. |
+| **`minigame`** | Star Catch & Teach Drills | 2 upbeat arcade synth tracks (~26–27s each) with retro drums. |
+| **`battle`** | Battle Arena (Wild Fights) | 2 driving RPG combat tracks (~26–27s each). |
+| **`boss`** | Battle Arena (Elite Boss Challenges) | 4-phase high-tension boss rush theme (~24s loop). |
+
+---
+
 ## Starters, Base Colors & Personalities
 
 When starting a **New Pet**, choose from **5 Starter Species**, **7 Base Colors** (**Purple, Red, Yellow, White, Green, Pink, Blue**), and an optional custom name. Every starter line has a unique **Personality Trait** with active gameplay effects:
@@ -173,8 +191,10 @@ Pets level up from **Lv. 1 to Lv. 30**, evolving automatically when awake at **L
 
 * **The Guide** *(Start-Up Menu or `[G]` in Status)*: Tracks all **35 species** permanently in `guide.json` across new playthroughs (showing silhouettes and unlock hints for undiscovered forms), plus quick-reference tabs for **Traits** and **Care** rules.
 * **Settings** *(saved in `config.json`)*:
+  * **Sound FX:** `ON` or `OFF` *(independent of Music)*.
+  * **Music:** `ON` or `OFF` *(independent of Sound FX)*.
   * **Clock Format:** `12-Hour` or `24-Hour`.
-  * **Window Sky:** `Auto` (real clock), `Dawn`, `Day`, `Sunset`, or `Night`.
+  * **Window Sky:** `Auto` (real clock), `Dawn`, `Day`, `Sunset`, or `Night` *(also switches Day/Somber music immediately)*.
   * **Game Speed:** `1x Normal`, `10x Fast`, or `60x Test`.
 
 ---
@@ -189,9 +209,11 @@ chmod +x deploy/install_launcher.sh deploy/run_zpet.sh
 ./deploy/install_launcher.sh
 ```
 Launch **Z-Pet** directly from **APPLaunch**. Z-Pet renders natively to `/dev/fb_lcd` (even if HDMI is connected) and stores persistent data in `~/.config/z-pet/`:
-* `save.json` — Active pet state, Battle Arena win streaks, and 48-hour survival tracking.
-* `config.json` — User preferences from Settings.
+* `save.json` — Active pet state, Battle Arena win streaks, Boss wins, and 48-hour survival tracking.
+* `config.json` — User preferences (`sfx`, `music`, clock format, sky mode, and game speed).
 * `guide.json` — Permanent 35-species discovery progress.
+
+> **Audio Note on Cardputer Zero:** If the built-in speaker is silent with `Sound FX` and `Music` turned `ON`, run `alsamixer`, press `M` to unmute playback if `[MM]` is shown, raise the volume, and save with `sudo alsactl store`.
 
 ### On Windows / Linux PC (Development Preview)
 ```bash

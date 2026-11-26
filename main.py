@@ -62,56 +62,77 @@ def main() -> None:
 
     config = load_config()
     scene = TitleScene(fonts, config)
-    sound.init(enabled=config.get("sound", True))
+    sound.init(
+        sfx_enabled=config.get("sfx", True),
+        music_enabled=config.get("music", True),
+    )
+    
+    sound.set_mood("somber" if sound.is_night_time(config) else "day")
     running = True
 
     def switch_scene(next_name: str, payload: dict) -> None:
-        nonlocal scene, running
-        if hasattr(scene, "on_exit"):
-            scene.on_exit()
+     nonlocal scene, running
+     if hasattr(scene, "on_exit"):
+         scene.on_exit()
 
-        if next_name == "quit":
-            running = False
-        elif next_name == "title":
-            scene = TitleScene(fonts, config)
-        elif next_name == "new_pet":
-            scene = NewPetScene(fonts, config)
-        elif next_name == "settings":
-            scene = SettingsScene(fonts, config)
-        elif next_name == "home":
-            scene = HomeScene(
-                fonts,
-                config,
-                pet=payload["pet"],
-                offline_seconds=payload.get("offline", 0.0),
-                is_new=payload.get("is_new", False),
-                return_toast=payload.get("return_toast", ""),
-                return_anim=payload.get("return_anim"),
-            )
-        elif next_name == "teach":
-            scene = TeachScene(fonts, config, pet=payload["pet"])
-        elif next_name == "minigame":
-            scene = StarCatchScene(fonts, config, pet=payload["pet"])
-        elif next_name == "status":
-            scene = StatusScene(fonts, config, pet=payload["pet"])
-        elif next_name == "evolve":
-            scene = EvolveScene(
-                fonts,
-                config,
-                pet=payload["pet"],
-                target_species_id=payload["target_species"],
-            )
-        
-        elif next_name == "battle":
-         scene = BattleScene(fonts, config, pet=payload["pet"])
-        
-        elif next_name == "guide":
-             scene = GuideScene(
+     if next_name == "quit":
+         sound.stop_music()
+         running = False
+         return
+
+     if next_name == "title":
+         scene = TitleScene(fonts, config)
+     elif next_name == "new_pet":
+         scene = NewPetScene(fonts, config)
+     elif next_name == "settings":
+         scene = SettingsScene(fonts, config)
+     elif next_name == "guide":
+         scene = GuideScene(
              fonts,
              config,
              return_to=payload.get("return_to", "title"),
              pet=payload.get("pet"),
-         )        
+         )
+     elif next_name == "status":
+         scene = StatusScene(fonts, config, pet=payload["pet"])
+     elif next_name == "teach":
+         scene = TeachScene(fonts, config, pet=payload["pet"])
+     elif next_name == "minigame":
+         scene = StarCatchScene(fonts, config, pet=payload["pet"])
+     elif next_name == "battle":
+         scene = BattleScene(fonts, config, pet=payload["pet"])
+     elif next_name == "evolve":
+         scene = EvolveScene(
+             fonts,
+             config,
+             pet=payload["pet"],
+             target_species=payload["target_species"],
+         )
+     elif next_name == "home":
+         scene = HomeScene(
+             fonts,
+             config,
+             pet=payload["pet"],
+             offline_seconds=payload.get("offline", 0.0),
+             is_new=payload.get("is_new", False),
+             return_toast=payload.get("return_toast", ""),
+             return_anim=payload.get("return_anim"),
+         )
+
+        # Keep mood continuous across menus; only pause for Evolution ceremony
+     if next_name == "evolve":
+            sound.stop_music()
+     elif next_name in ("title", "new_pet", "settings"):
+            sound.set_mood("somber" if sound.is_night_time(config) else "day")
+        
+
+        # Runs AFTER the scene is created (lined up with `if next_name == "title":`)
+     if next_name in ("title", "new_pet", "settings"):
+            sound.play_music("menu")
+     elif next_name == "guide" and payload.get("return_to", "title") == "title":
+            sound.play_music("menu")
+     elif next_name == "evolve":
+            sound.stop_music()
          
 
     def handle_exit_signal(_signum, _frame) -> None:
@@ -127,7 +148,7 @@ def main() -> None:
         while running:
             dt = min(clock.tick(settings.FPS) / 1000.0, 0.1)
             display.poll_hardware_keys()
-
+            sound.update()
             capture_requested = False
 
             for event in pygame.event.get():
@@ -150,6 +171,8 @@ def main() -> None:
             if not running:
                 break
 
+            
+            
             auto_transition = scene.update(dt)
             if auto_transition is not None:
                 switch_scene(*auto_transition)

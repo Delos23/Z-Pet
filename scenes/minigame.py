@@ -1,4 +1,4 @@
-"""Star Catch interactive Play mini-game for Z-Pet (320x170)."""
+"""Star Catch arcade mini-game scene for Z-Pet (320x170)."""
 
 import math
 import random
@@ -7,38 +7,44 @@ import pygame
 import settings
 from core import sound
 from core.animator import load_species_animations
+from core.display import KEYS_LEFT, KEYS_RIGHT
 from core.pet import Pet
 from core.save_manager import save_pet
-from core.display import KEYS_LEFT, KEYS_RIGHT
 
-ROUND_SECONDS = 20.0
+ROUND_DURATION = 20.0
 PET_SPEED = 148.0
 
-STAR_GOLD = (255, 232, 102)
-STAR_PINK = (255, 115, 195)
-STAR_CORE = (255, 250, 225)
-BOLT_OUT = (240, 82, 108)
-BOLT_CORE = (255, 212, 120)
+GOLD_COL = (255, 224, 96)
+MEGA_COL = (255, 118, 196)
+BOLT_COL = (126, 212, 255)
 GOOD_COL = (105, 225, 145)
-WARN_COL = (245, 195, 85)
+WARN_COL = (240, 95, 115)
 
 
-def draw_star(canvas: pygame.Surface, cx: int, cy: int, outer_col: tuple, size: int = 4) -> None:
-    """Draws a crisp pixel star centered at (cx, cy)."""
-    pygame.draw.rect(canvas, outer_col, (cx - 1, cy - size, 3, size * 2 + 1))
-    pygame.draw.rect(canvas, outer_col, (cx - size, cy - 1, size * 2 + 1, 3))
-    pygame.draw.rect(canvas, STAR_CORE, (cx - 1, cy - 1, 3, 3))
+def _draw_star(surf: pygame.Surface, cx: int, cy: int, color: tuple, big: bool = False) -> None:
+    r = 6 if big else 4
+    pygame.draw.line(surf, color, (cx - r, cy), (cx + r, cy), 2)
+    pygame.draw.line(surf, color, (cx, cy - r), (cx, cy + r), 2)
+    pygame.draw.rect(surf, (255, 252, 225), (cx - 1, cy - 1, 3, 3))
+    if big:
+        pygame.draw.circle(surf, color, (cx, cy), 4, 1)
 
 
-def draw_bolt(canvas: pygame.Surface, cx: int, cy: int) -> None:
-    """Draws a falling hazard zap-orb."""
-    pygame.draw.circle(canvas, BOLT_OUT, (cx, cy), 5)
-    pygame.draw.rect(canvas, BOLT_CORE, (cx - 1, cy - 3, 2, 3))
-    pygame.draw.rect(canvas, BOLT_CORE, (cx, cy, 2, 3))
+def _draw_bolt(surf: pygame.Surface, cx: int, cy: int) -> None:
+    pts = [
+        (cx + 2, cy - 6),
+        (cx - 3, cy),
+        (cx + 1, cy),
+        (cx - 2, cy + 6),
+        (cx + 4, cy - 1),
+        (cx, cy - 1),
+    ]
+    pygame.draw.polygon(surf, BOLT_COL, pts)
+    pygame.draw.polygon(surf, (255, 255, 255), pts, 1)
 
 
 class StarCatchScene:
-    """20-second arcade mini-game: move Sparkkit left/right to catch stars & dodge zaps."""
+    """20-second Star Catch mini-game with combos, mega-stars, storm bolts, and full SFX."""
 
     accepts_text_input = False
 
@@ -55,33 +61,35 @@ class StarCatchScene:
             scale=settings.SPRITE_SCALE,
             color_id=pet.color,
         )
-        self.rendered_size = settings.SPRITE_SIZE * settings.SPRITE_SCALE  # 64px
+        self.rendered_size = settings.SPRITE_SIZE * settings.SPRITE_SCALE
+        self.pet_y = 146 - self.rendered_size
 
-        rng = random.Random(99)
+        rng = random.Random(19)
         self.bg_stars = [
-            (rng.randint(4, settings.LOGICAL_WIDTH - 4), rng.randint(28, 126), rng.uniform(0, 6.28))
-            for _ in range(22)
+            (rng.randint(4, settings.LOGICAL_WIDTH - 4), rng.randint(24, 134), rng.uniform(0, 6.28))
+            for _ in range(24)
         ]
 
         self.held_keys: set[int] = set()
         self.elapsed = 0.0
-        self.last_reward_toast = ""
-        self._reset_round()
+        self.result: dict | None = None
+        self.last_toast = ""
+        self._start_round()
 
-    def _reset_round(self) -> None:
-        self.phase = "playing"  # playing -> result
-        self.time_left = ROUND_SECONDS
+    def _start_round(self) -> None:
+        self.phase = "playing"
+        self.time_left = ROUND_DURATION
         self.score = 0
         self.combo = 0
-        self.pet_x = float((settings.LOGICAL_WIDTH - self.rendered_size) // 2)
-        self.pet_y = 138 - 56  # Feet sit neatly on the y=136 floor
         self.stun_timer = 0.0
-        self.spawn_timer = 0.45
+        self.spawn_timer = 0.35
+        self.pet_x = float((settings.LOGICAL_WIDTH - self.rendered_size) // 2)
         self.items: list[dict] = []
         self.popups: list[dict] = []
-        self.result: dict | None = None
-        self.held_keys.clear()
+        self.result = None
+        self.animator.facing_left = False
         self.animator.play("idle", restart=True)
+        sound.play_music("minigame")
 
     def _spawn_item(self) -> None:
         roll = random.random()
@@ -90,15 +98,15 @@ class StarCatchScene:
             speed = random.uniform(76.0, 108.0)
         elif roll < 0.36:
             kind = "mega"
-            speed = random.uniform(82.0, 112.0)
+            speed = random.uniform(86.0, 118.0)
         else:
             kind = "star"
-            speed = random.uniform(62.0, 92.0)
+            speed = random.uniform(62.0, 94.0)
 
         self.items.append({
             "kind": kind,
-            "x": float(random.randint(18, settings.LOGICAL_WIDTH - 18)),
-            "y": 26.0,
+            "x": float(random.randint(16, settings.LOGICAL_WIDTH - 16)),
+            "y": 24.0,
             "vy": speed,
         })
 
@@ -109,12 +117,14 @@ class StarCatchScene:
         self.phase = "result"
         self.held_keys.clear()
         self.result = self.pet.complete_minigame(self.score)
-        sound.play("level_up" if self.result_info.get("leveled_up") else "victory")
         save_pet(self.pet)
+        sound.stop_music()
+        sound.play("level_up" if self.result.get("leveled_up") else "victory")
         self.animator.play("happy", restart=True, next_anim="idle")
-        self.last_reward_toast = (
-            f"Star Catch: {self.score}pts! +{self.result['happy_gain']} Happy"
-        )
+        if self.result.get("spd_bonus"):
+            self.last_toast = f"Star Catch: {self.score} pts! +1 SPD!"
+        else:
+            self.last_toast = f"Star Catch: {self.score} pts! +{self.result['xp_gain']} XP"
 
     def on_exit(self) -> None:
         save_pet(self.pet)
@@ -127,41 +137,29 @@ class StarCatchScene:
         if event.type != pygame.KEYDOWN:
             return None
 
-        if self.phase == "playing":
-            self.held_keys.add(event.key)
-            if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                return ("home", {"pet": self.pet})
+        self.held_keys.add(event.key)
 
-        elif self.phase == "result":
-            if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                return (
-                    "home",
-                    {
-                        "pet": self.pet,
-                        "return_toast": self.last_reward_toast,
-                        "return_anim": "play",
-                    },
-                )
-            elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                ok, msg = self.pet.can_play()
-                if ok:
-                    self._reset_round()
-                else:
-                    return (
-                        "home",
-                        {
-                            "pet": self.pet,
-                            "return_toast": msg,
-                            "return_anim": "idle",
-                        },
-                    )
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            sound.play("back")
+            if self.phase == "result":
+                return ("home", {"pet": self.pet, "return_toast": self.last_toast, "return_anim": "happy"})
+            return ("home", {"pet": self.pet, "return_toast": "Left Star Catch."})
+
+        if self.phase == "result" and event.key in (pygame.K_RETURN, pygame.K_SPACE):
+            ok, msg = self.pet.can_play()
+            if ok:
+                sound.play("select")
+                self._start_round()
+            else:
+                sound.play("error")
+                return ("home", {"pet": self.pet, "return_toast": msg, "return_anim": "idle"})
         return None
 
     def update(self, dt: float) -> None:
         self.elapsed += dt
 
         for p in self.popups:
-            p["y"] -= 24.0 * dt
+            p["y"] -= 22.0 * dt
             p["life"] -= dt
         self.popups = [p for p in self.popups if p["life"] > 0]
 
@@ -169,16 +167,13 @@ class StarCatchScene:
             self.animator.update(dt)
             return
 
-        self.time_left -= dt
-        if self.time_left <= 0:
-            self.time_left = 0.0
+        self.time_left = max(0.0, self.time_left - dt)
+        if self.time_left <= 0.0:
             self._finish_round()
             return
 
-        # Movement (uses held_keys so it works identically on PC and Cardputer Zero evdev)
-        if self.stun_timer > 0:
-            self.stun_timer -= dt
-            self.animator.play("idle")
+        if self.stun_timer > 0.0:
+            self.stun_timer = max(0.0, self.stun_timer - dt)
         else:
             move = 0.0
             if any(k in self.held_keys for k in KEYS_LEFT):
@@ -188,147 +183,148 @@ class StarCatchScene:
 
             if move != 0.0:
                 self.pet_x += move * PET_SPEED * dt
-                self.pet_x = max(-8.0, min(settings.LOGICAL_WIDTH - self.rendered_size + 8.0, self.pet_x))
+                self.pet_x = max(2.0, min(float(settings.LOGICAL_WIDTH - self.rendered_size - 2), self.pet_x))
                 self.animator.facing_left = move < 0
-                if not self.animator.is_playing_oneshot:
-                    self.animator.play("walk")
+                self.animator.play("walk")
             elif not self.animator.is_playing_oneshot:
                 self.animator.play("idle")
 
         self.animator.update(dt)
 
-        # Spawn falling stars & storm bolts (slightly faster in the final 8 seconds)
+        # Spawn falling stars and storm bolts
         self.spawn_timer -= dt
-        if self.spawn_timer <= 0:
+        if self.spawn_timer <= 0.0:
             self._spawn_item()
-            self.spawn_timer = random.uniform(0.38, 0.62) if self.time_left < 8.0 else random.uniform(0.48, 0.78)
+            self.spawn_timer = random.uniform(0.38, 0.65)
 
-        # Forgiving catch box vs tighter hazard box
-        catch_rect = pygame.Rect(int(self.pet_x) + 14, int(self.pet_y) + 20, 36, 36)
-        dodge_rect = pygame.Rect(int(self.pet_x) + 20, int(self.pet_y) + 26, 24, 28)
+        catch_rect = pygame.Rect(
+            int(self.pet_x) + 12,
+            int(self.pet_y) + 16,
+            self.rendered_size - 24,
+            self.rendered_size - 18,
+        )
 
-        survivors: list[dict] = []
+        kept: list[dict] = []
         for item in self.items:
             item["y"] += item["vy"] * dt
-            if item["y"] > 142:
-                if item["kind"] in ("star", "mega"):
-                    self.combo = 0
-                continue
+            item_rect = pygame.Rect(int(item["x"]) - 6, int(item["y"]) - 6, 12, 12)
 
-            item_rect = pygame.Rect(int(item["x"]) - 5, int(item["y"]) - 5, 10, 10)
-            if item["kind"] == "bolt":
-                if dodge_rect.colliderect(item_rect) and self.stun_timer <= 0:
+            if catch_rect.colliderect(item_rect):
+                if item["kind"] == "bolt":
                     self.score = max(0, self.score - 1)
                     self.combo = 0
-                    self.stun_timer = 0.35
-                    self._add_popup("ZAP! -1", item["x"] - 18, item["y"] - 8, BOLT_OUT)
-                    continue
-            else:
-                if catch_rect.colliderect(item_rect):
+                    self.stun_timer = 0.55
+                    sound.play("bolt")
+                    self._add_popup("-1 ZAP!", item["x"] - 18, item["y"], WARN_COL)
+                else:
                     self.combo += 1
-                    pts = 3 if item["kind"] == "mega" else 1
-                    if self.combo >= 5:
-                        pts += 1
+                    base_pts = 3 if item["kind"] == "mega" else 1
+                    combo_bonus = 1 if self.combo >= 5 else 0
+                    pts = base_pts + combo_bonus
                     self.score += pts
-                    col = STAR_PINK if item["kind"] == "mega" else STAR_GOLD
-                    label = f"+{pts}!" if self.combo >= 5 else f"+{pts}"
-                    self._add_popup(label, item["x"] - 8, item["y"] - 8, col)
                     self.animator.play("happy", restart=True, next_anim="idle")
-                    continue
 
-            survivors.append(item)
-        self.items = survivors
+                    if self.combo in (5, 10, 15, 20):
+                        sound.play("combo")
+                        self._add_popup(f"+{pts} x{self.combo}!", item["x"] - 14, item["y"], GOOD_COL)
+                    elif item["kind"] == "mega":
+                        sound.play("mega_catch")
+                        self._add_popup(f"+{pts}!", item["x"] - 8, item["y"], MEGA_COL)
+                    else:
+                        sound.play("catch")
+                        self._add_popup(f"+{pts}", item["x"] - 6, item["y"], GOLD_COL)
+                continue
+
+            if item["y"] < 146:
+                kept.append(item)
+            elif item["kind"] != "bolt":
+                self.combo = 0
+        self.items = kept
 
     def render(self, canvas: pygame.Surface) -> None:
-        # Brief subtle red tint if zapped
-        bg = (44, 18, 36) if self.stun_timer > 0 else settings.COLOR_BG
-        canvas.fill(bg)
+        canvas.fill((18, 14, 38))
 
-        # Twinkling sky stars
         for sx, sy, phase in self.bg_stars:
-            col = (210, 200, 245) if math.sin(self.elapsed * 2.5 + phase) > 0.3 else (96, 84, 138)
+            col = (210, 200, 245) if math.sin(self.elapsed * 2.6 + phase) > 0.35 else (78, 66, 118)
             canvas.fill(col, (sx, sy, 1, 1))
 
-        # Floor strip
-        pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 136, settings.LOGICAL_WIDTH, 12))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 136), (settings.LOGICAL_WIDTH, 136), 1)
+        # Ground strip
+        pygame.draw.rect(canvas, settings.COLOR_FLOOR, (0, 138, settings.LOGICAL_WIDTH, 10))
+        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 138), (settings.LOGICAL_WIDTH, 138), 1)
 
-        # Top HUD bar
-        pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 24))
-        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 24), (settings.LOGICAL_WIDTH, 24), 1)
+        # Top HUD
+        pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 22))
+        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 22), (settings.LOGICAL_WIDTH, 22), 1)
+        canvas.blit(self.fonts["sans"].render("STAR CATCH", True, GOLD_COL), (8, 3))
 
-        title_s = self.fonts["sans"].render("STAR CATCH", True, settings.COLOR_TEXT)
-        canvas.blit(title_s, (8, 4))
+        score_txt = f"PTS:{self.score}"
+        if self.combo >= 5:
+            score_txt += f" x{self.combo}"
+        sc_s = self.fonts["mono"].render(score_txt, True, GOOD_COL if self.combo >= 5 else settings.COLOR_TEXT)
+        canvas.blit(sc_s, ((settings.LOGICAL_WIDTH - sc_s.get_width()) // 2, 3))
 
-        combo_txt = f" x{self.combo}" if self.combo >= 3 else ""
-        score_s = self.fonts["mono"].render(f"PTS:{self.score}{combo_txt}", True, STAR_GOLD)
-        canvas.blit(score_s, ((settings.LOGICAL_WIDTH - score_s.get_width()) // 2, 4))
-
-        time_col = BOLT_OUT if self.time_left <= 5.0 else GOOD_COL
-        time_s = self.fonts["mono"].render(f"{int(math.ceil(self.time_left)):02d}s", True, time_col)
-        canvas.blit(time_s, (settings.LOGICAL_WIDTH - time_s.get_width() - 8, 4))
+        time_col = WARN_COL if self.time_left <= 5.0 else BOLT_COL
+        tm_s = self.fonts["mono"].render(f"{self.time_left:04.1f}s", True, time_col)
+        canvas.blit(tm_s, (settings.LOGICAL_WIDTH - tm_s.get_width() - 8, 3))
 
         # Falling stars & bolts
         for item in self.items:
             ix, iy = int(item["x"]), int(item["y"])
-            if item["kind"] == "star":
-                draw_star(canvas, ix, iy, STAR_GOLD, size=4)
+            if item["kind"] == "bolt":
+                _draw_bolt(canvas, ix, iy)
             elif item["kind"] == "mega":
-                draw_star(canvas, ix, iy, STAR_PINK, size=5)
+                _draw_star(canvas, ix, iy, MEGA_COL, big=True)
             else:
-                draw_bolt(canvas, ix, iy)
+                _draw_star(canvas, ix, iy, GOLD_COL, big=False)
 
-        # Sparkkit shadow + sprite (flickers gently while stunned)
-        if self.stun_timer <= 0 or int(self.elapsed * 20) % 2 == 0:
-            pygame.draw.ellipse(canvas, (18, 12, 28), pygame.Rect(int(self.pet_x) + 14, 134, 36, 6))
+        # Pet sprite (blinks briefly while stunned)
+        if self.stun_timer <= 0.0 or int(self.elapsed * 16) % 2 == 0:
+            pygame.draw.ellipse(canvas, (14, 10, 26), pygame.Rect(int(self.pet_x) + 14, 140, 36, 6))
             canvas.blit(self.animator.get_frame(), (int(self.pet_x), int(self.pet_y)))
 
-        # Floating score popups
         for p in self.popups:
-            surf = self.fonts["mono"].render(p["text"], True, p["color"])
-            canvas.blit(surf, (int(p["x"]), int(p["y"])))
+            ps = self.fonts["mono"].render(p["text"], True, p["color"])
+            canvas.blit(ps, (int(p["x"]), int(p["y"])))
 
-        # Result overlay when time is up
+        # Result modal
         if self.phase == "result" and self.result is not None:
             res = self.result
-            card = pygame.Rect(24, 32, 272, 106)
+            card = pygame.Rect(24, 28, 272, 112)
             pygame.draw.rect(canvas, settings.COLOR_PANEL, card, border_radius=6)
-            pygame.draw.rect(canvas, settings.COLOR_ACCENT, card, 1, border_radius=6)
+            pygame.draw.rect(canvas, GOLD_COL, card, 2, border_radius=6)
 
-            head_txt = "NEW BEST!" if res["is_new_best"] else "TIME UP!"
-            head_col = STAR_GOLD if res["is_new_best"] else settings.COLOR_TEXT
-            head_s = self.fonts["title"].render(head_txt, True, head_col)
-            canvas.blit(head_s, ((settings.LOGICAL_WIDTH - head_s.get_width()) // 2, 38))
+            head = "NEW HIGH SCORE!" if res.get("is_new_best") else "TIME UP!"
+            head_s = self.fonts["title"].render(head, True, GOLD_COL)
+            canvas.blit(head_s, ((settings.LOGICAL_WIDTH - head_s.get_width()) // 2, 34))
 
-            sc_s = self.fonts["mono"].render(
-                f"Score: {res['score']}   Best: {res['high_score']}",
-                True,
-                settings.COLOR_TEXT,
+            pts_s = self.fonts["mono"].render(
+                f"Score: {res['score']}   Best: {res['high_score']}", True, settings.COLOR_TEXT
             )
-            canvas.blit(sc_s, ((settings.LOGICAL_WIDTH - sc_s.get_width()) // 2, 68))
-
-            rew_txt = f"+{res['happy_gain']} Happy   +{res['bond_gain']} Bond"
-            if res["spd_bonus"]:
-                rew_txt += f"   +{res['spd_bonus']} SPD!"
-            rew_s = self.fonts["sans"].render(rew_txt, True, GOOD_COL)
-            canvas.blit(rew_s, ((settings.LOGICAL_WIDTH - rew_s.get_width()) // 2, 92))
+            canvas.blit(pts_s, ((settings.LOGICAL_WIDTH - pts_s.get_width()) // 2, 64))
 
             if res.get("leveled_up"):
-                xp_txt = f"LEVEL UP! Now Lv.{res['new_level']} (+{res['xp_gain']} XP)"
-                xp_col = STAR_GOLD
+                rew_txt = f"LEVEL UP! Lv.{res['new_level']} (+{res['xp_gain']} XP)"
+                rew_col = GOLD_COL
             else:
-                xp_txt = f"+{res['xp_gain']} XP   Energy: {int(self.pet.energy)}%"
-                xp_col = settings.COLOR_MUTED
-            eng_s = self.fonts["sans"].render(xp_txt, True, xp_col)
-            canvas.blit(eng_s, ((settings.LOGICAL_WIDTH - eng_s.get_width()) // 2, 112))
+                rew_txt = f"+{res['happy_gain']} Happy  +{res['bond_gain']} Bond  +{res['xp_gain']} XP"
+                rew_col = GOOD_COL
+            rew_s = self.fonts["sans"].render(rew_txt, True, rew_col)
+            canvas.blit(rew_s, ((settings.LOGICAL_WIDTH - rew_s.get_width()) // 2, 86))
 
-        # Bottom controls bar
+            if res.get("spd_bonus"):
+                spd_s = self.fonts["mono"].render("BONUS: +1 PERMANENT SPD!", True, MEGA_COL)
+                canvas.blit(spd_s, ((settings.LOGICAL_WIDTH - spd_s.get_width()) // 2, 108))
+            else:
+                tip_s = self.fonts["sans"].render("Score 12+ for a +1 SPD bonus!", True, settings.COLOR_MUTED)
+                canvas.blit(tip_s, ((settings.LOGICAL_WIDTH - tip_s.get_width()) // 2, 108))
+
+        # Bottom footer
         pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 148, settings.LOGICAL_WIDTH, 22))
         pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 148), (settings.LOGICAL_WIDTH, 148), 1)
         footer = (
-         "Enter:Play Again   Esc:Home"
-         if self.phase == "result"
-         else "←/→:Move   Esc:Home"
-     )
+            "Enter:Play Again   Esc:Home"
+            if self.phase == "result"
+            else "←/→:Move   Esc:Home"
+        )
         foot_s = self.fonts["sans"].render(footer, True, settings.COLOR_MUTED)
         canvas.blit(foot_s, ((settings.LOGICAL_WIDTH - foot_s.get_width()) // 2, 152))

@@ -86,12 +86,14 @@ class BattleScene:
         self.last_toast = ""
         self._start_match()
         if self.is_boss:
-            sound.play("boss")
-            self.log_text = (
-                f"ELITE {self.rival['boss_title']} {self.rival['name']} Lv.{self.rival['level']}!"
-            )
+         sound.play_music("boss")
+         sound.play("boss")
+         self.log_text = (
+             f"ELITE {self.rival['boss_title']} {self.rival['name']} Lv.{self.rival['level']}!"
+         )
         else:
-            self.log_text = f"Wild {self.rival['name']} Lv.{self.rival['level']} appeared!"
+         sound.play_music("battle")
+         self.log_text = f"Wild {self.rival['name']} Lv.{self.rival['level']} appeared!"
 
     def _start_match(self) -> None:
         self.player = make_fighter_from_pet(self.pet)
@@ -285,6 +287,7 @@ class BattleScene:
         )
         save_pet(self.pet)
         self.phase = "result"
+        sound.stop_music()
         if won:
             sound.play("level_up" if self.result_info.get("leveled_up") else "victory")
             self.player_anim.play("happy", restart=True, next_anim="idle")

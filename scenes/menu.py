@@ -418,23 +418,27 @@ class NewPetScene:
 
 
 class SettingsScene:
-    """User preferences: Sound FX, 12h/24h Clock, Window Sky, and Game Speed."""
+    """User preferences: SFX, Music, 12h/24h Clock, Window Sky, and Game Speed."""
 
     accepts_text_input = False
 
     def __init__(self, fonts: dict, config: dict):
         self.fonts = fonts
         self.config = config
-        self.rows = ["sound", "clock_24h", "sky_mode", "time_scale", "back"]
+        self.rows = ["sfx", "music", "clock_24h", "sky_mode", "time_scale", "back"]
         self.cursor = 0
 
     def _cycle_option(self, delta: int) -> None:
         key = self.rows[self.cursor]
-        if key == "sound":
-            self.config["sound"] = not self.config.get("sound", True)
-            sound.set_enabled(self.config["sound"])
-            if self.config["sound"]:
+        if key == "sfx":
+            self.config["sfx"] = not self.config.get("sfx", True)
+            sound.set_sfx_enabled(self.config["sfx"])
+            if self.config["sfx"]:
                 sound.play("select")
+        elif key == "music":
+            self.config["music"] = not self.config.get("music", True)
+            sound.set_music_enabled(self.config["music"])
+            sound.play("click")
         elif key == "clock_24h":
             self.config["clock_24h"] = not self.config.get("clock_24h", False)
             sound.play("click")
@@ -444,6 +448,7 @@ class SettingsScene:
             idx = modes.index(cur) if cur in modes else 0
             self.config["sky_mode"] = modes[(idx + delta) % len(modes)]
             sound.play("click")
+            sound.set_mood("somber" if sound.is_night_time(self.config) else "day")
         elif key == "time_scale":
             scales = [1.0, 10.0, 60.0]
             cur = float(self.config.get("time_scale", 1.0))
@@ -453,8 +458,10 @@ class SettingsScene:
         save_config(self.config)
 
     def _value_label(self, key: str) -> str:
-        if key == "sound":
-            return "ON" if self.config.get("sound", True) else "OFF"
+        if key == "sfx":
+            return "ON" if self.config.get("sfx", True) else "OFF"
+        if key == "music":
+            return "ON" if self.config.get("music", True) else "OFF"
         if key == "clock_24h":
             return "24-Hour" if self.config.get("clock_24h", False) else "12-Hour"
         if key == "sky_mode":
@@ -500,7 +507,8 @@ class SettingsScene:
         canvas.blit(title_s, (10, 4))
 
         labels = {
-            "sound": "Sound FX",
+            "sfx": "Sound FX",
+            "music": "Music",
             "clock_24h": "Clock Format",
             "sky_mode": "Window Sky",
             "time_scale": "Game Speed",
@@ -508,8 +516,8 @@ class SettingsScene:
         }
 
         for idx, key in enumerate(self.rows):
-            ry = 30 + idx * 23
-            rect = pygame.Rect(14, ry, 292, 20)
+            ry = 29 + idx * 19
+            rect = pygame.Rect(14, ry, 292, 17)
             selected = idx == self.cursor
             pygame.draw.rect(canvas, (76, 52, 122) if selected else settings.COLOR_PANEL, rect, border_radius=4)
             pygame.draw.rect(
@@ -523,12 +531,13 @@ class SettingsScene:
             lbl_s = self.fonts["sans"].render(
                 labels[key], True, settings.COLOR_TEXT if selected else settings.COLOR_MUTED
             )
-            canvas.blit(lbl_s, (24, ry + 2))
+            canvas.blit(lbl_s, (24, ry + (17 - lbl_s.get_height()) // 2))
 
             if key != "back":
                 val_txt = f"< {self._value_label(key)} >"
-                val_col = (105, 225, 145) if (key == "sound" and self.config.get("sound", True)) else (255, 224, 96)
+                is_on_toggle = key in ("sfx", "music") and self.config.get(key, True)
+                val_col = (105, 225, 145) if is_on_toggle else (255, 224, 96)
                 val_s = self.fonts["mono"].render(val_txt, True, val_col if selected else settings.COLOR_MUTED)
-                canvas.blit(val_s, (rect.right - val_s.get_width() - 10, ry + 2))
+                canvas.blit(val_s, (rect.right - val_s.get_width() - 10, ry + (17 - val_s.get_height()) // 2))
 
         _draw_footer(canvas, self.fonts["sans"], "↑/↓:Row  ←/→:Change  Esc:Back")
