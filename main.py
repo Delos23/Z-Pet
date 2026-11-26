@@ -21,6 +21,8 @@ from scenes.status import StatusScene
 from scenes.teach import TeachScene
 from scenes.guide import GuideScene
 from scenes.battle import BattleScene
+from scenes.battle import BattleScene
+from scenes.about import AboutScene
 
 def save_screenshot(canvas: pygame.Surface) -> str:
     """Saves an exact 320x170 PNG screenshot for CardputerZero Store submission."""
@@ -93,6 +95,12 @@ def main() -> None:
              return_to=payload.get("return_to", "title"),
              pet=payload.get("pet"),
          )
+     elif next_name == "about":
+        scene = AboutScene(
+            fonts,
+            config,
+            return_to=payload.get("return_to", "title"),
+        )
      elif next_name == "status":
          scene = StatusScene(fonts, config, pet=payload["pet"])
      elif next_name == "teach":
@@ -122,13 +130,13 @@ def main() -> None:
         # Keep mood continuous across menus; only pause for Evolution ceremony
      if next_name == "evolve":
             sound.stop_music()
-     elif next_name in ("title", "new_pet", "settings"):
-            sound.set_mood("somber" if sound.is_night_time(config) else "day")
+     elif next_name in ("title", "new_pet", "settings", "about"):
+        sound.set_mood("somber" if sound.is_night_time(config) else "day")
         
 
         # Runs AFTER the scene is created (lined up with `if next_name == "title":`)
-     if next_name in ("title", "new_pet", "settings"):
-            sound.play_music("menu")
+     if next_name in ("title", "new_pet", "settings", "about"):
+        sound.play_music("menu")
      elif next_name == "guide" and payload.get("return_to", "title") == "title":
             sound.play_music("menu")
      elif next_name == "evolve":

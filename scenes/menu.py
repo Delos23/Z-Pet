@@ -80,12 +80,13 @@ class TitleScene:
         self.preview = get_save_preview() if self.save_exists else None
 
         self.items = [
-         ("continue", "Continue"),
-         ("new_pet", "New Pet"),
-         ("guide", "The Guide"),
-         ("settings", "Settings"),
-         ("quit", "Quit"),
-     ]
+            ("continue", "Continue"),
+            ("new_pet", "New Pet"),
+            ("guide", "The Guide"),
+            ("settings", "Settings"),
+            ("about", "About"),
+            ("quit", "Quit"),
+        ]
         self.cursor = 0 if self.save_exists else 1
 
         preview_species = self.preview["species_id"] if self.preview else "spark_kit"
@@ -124,8 +125,11 @@ class TitleScene:
              return ("guide", {"return_to": "title"})
             if action == "settings":
                 return ("settings", {})
+            if action == "about":
+                return ("about", {"return_to": "title"})
             if action == "quit":
                 return ("quit", {})
+            
         return None
 
     def update(self, dt: float) -> None:
@@ -163,8 +167,8 @@ class TitleScene:
         pygame.draw.rect(canvas, settings.COLOR_ACCENT, panel_rect, 1, border_radius=6)
 
         for idx, (action, label) in enumerate(self.items):
-            row_y = 14 + idx * 25
-            row_rect = pygame.Rect(158, row_y, 144, 22)
+            row_y = 12 + idx * 21
+            row_rect = pygame.Rect(158, row_y, 144, 19)
             is_selected = idx == self.cursor
             is_disabled = action == "continue" and not self.save_exists
 
@@ -184,10 +188,10 @@ class TitleScene:
 
             if is_selected:
                 arrow = self.fonts["mono"].render(">", True, GOOD_COLOR if not is_disabled else DISABLED_TEXT)
-                canvas.blit(arrow, (164, row_y + 4))
+                canvas.blit(arrow, (164, row_y + (19 - arrow.get_height()) // 2))
 
             lbl_surf = self.fonts["sans"].render(display_lbl, True, text_col)
-            canvas.blit(lbl_surf, (178, row_y + 4))
+            canvas.blit(lbl_surf, (178, row_y + (19 - lbl_surf.get_height()) // 2))
 
         _draw_footer(canvas, self.fonts["sans"], "↑/↓:Move  Enter:Select  Esc:Quit")
 
