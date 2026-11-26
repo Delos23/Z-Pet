@@ -158,7 +158,7 @@ class AboutScene:
             pts = ((x, y), (x + 3, y + 3), (x, y + 6))
         pygame.draw.polygon(canvas, color, pts)
 
-    def draw(self, canvas: pygame.Surface) -> None:
+    def render(self, canvas: pygame.Surface) -> None:
         w, h = settings.LOGICAL_WIDTH, settings.LOGICAL_HEIGHT
         canvas.fill(self.col_bg)
 
