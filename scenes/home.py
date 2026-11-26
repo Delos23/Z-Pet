@@ -6,6 +6,7 @@ import random
 import pygame
 
 import settings
+from core import sound
 from core.animator import load_species_animations
 from core.display import KEYS_LEFT, KEYS_RIGHT
 from core.pet import Pet
@@ -590,12 +591,14 @@ class HomeScene:
         action_id = HOME_ACTIONS[self.action_idx][0]
 
         if action_id == "status":
+            sound.play("select")
             save_pet(self.pet)
             return ("status", {"pet": self.pet})
 
         if action_id == "sleep":
             ok, msg = self.pet.toggle_sleep()
             if ok:
+                sound.play("sleep" if self.pet.sleeping else "wake")
                 if self.pet.sleeping:
                     self.bed_state = "walking_to_bed"
                 else:
@@ -607,71 +610,92 @@ class HomeScene:
                         self.bed_state = "awake"
                         self.animator.play("idle", restart=True)
                 save_pet(self.pet)
+            else:
+                sound.play("error")
             self.show_toast(msg)
             return None
 
         if action_id == "clean":
             ok, msg = self.pet.clean_room()
             if ok:
+                sound.play("level_up" if msg.startswith("LEVEL UP!") else "clean")
                 if self.bed_state == "awake":
                     self.animator.play("happy", restart=True, next_anim="idle")
                 save_pet(self.pet)
+            else:
+                sound.play("error")
             self.show_toast(msg)
             return None
 
         if self.bed_state == "waking_up":
+            sound.play("error")
             self.show_toast("Hold on, waking up!")
             return None
 
         if action_id == "train":
             ok, msg = self.pet.can_train()
             if ok:
+                sound.play("select")
                 save_pet(self.pet)
                 return ("teach", {"pet": self.pet})
+            sound.play("error")
             self.show_toast(msg)
             return None
 
         if action_id == "battle":
-         ok, msg = self.pet.can_battle()
-         if ok:
-             save_pet(self.pet)
-             return ("battle", {"pet": self.pet})
-         self.show_toast(msg)
-         return None
-        
+            ok, msg = self.pet.can_battle()
+            if ok:
+                sound.play("select")
+                save_pet(self.pet)
+                return ("battle", {"pet": self.pet})
+            sound.play("error")
+            self.show_toast(msg)
+            return None
+
         if action_id == "play":
             ok, msg = self.pet.can_play()
             if ok:
+                sound.play("select")
                 save_pet(self.pet)
                 return ("minigame", {"pet": self.pet})
+            sound.play("error")
             self.show_toast(msg)
             return None
 
         if action_id == "feed":
             ok, msg = self.pet.feed()
             if ok:
+                sound.play("level_up" if msg.startswith("LEVEL UP!") else "feed")
                 self.animator.facing_left = False
                 self.animator.play("eat", restart=True, next_anim="idle")
                 save_pet(self.pet)
+            else:
+                sound.play("error")
             self.show_toast(msg)
             return None
 
         if action_id == "treat":
             ok, msg = self.pet.give_treat()
             if ok:
+                sound.play("level_up" if msg.startswith("LEVEL UP!") else "treat")
                 self.animator.facing_left = False
                 self.animator.play("snack", restart=True, next_anim="idle")
                 self.spawn_hearts(2)
                 save_pet(self.pet)
+            else:
+                sound.play("error")
             self.show_toast(msg)
             return None
 
         if action_id == "hug":
             ok, msg = self.pet.hug()
             if ok:
+                sound.play("level_up" if msg.startswith("LEVEL UP!") else "hug")
                 self.animator.play("happy", restart=True, next_anim="idle")
                 self.spawn_hearts(4)
                 save_pet(self.pet)
+            else:
+                sound.play("error")
             self.show_toast(msg)
             return None
 
@@ -685,11 +709,13 @@ class HomeScene:
             return None
 
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            sound.play("back")
             save_pet(self.pet)
             return ("title", {})
 
         if not self.pet.alive:
             if event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_r):
+                sound.play("evolve")
                 self.pet = Pet({"name": self.pet.name, "color": self.pet.color})
                 self._load_pet_assets()
                 self.walk_speed = 38.0 * self.pet.personality["walk_speed_mult"]
@@ -706,9 +732,11 @@ class HomeScene:
         if event.key in KEYS_LEFT:
             self.action_idx = (self.action_idx - 1) % len(HOME_ACTIONS)
             self.label_timer = 1.8
+            sound.play("click")
         elif event.key in KEYS_RIGHT:
             self.action_idx = (self.action_idx + 1) % len(HOME_ACTIONS)
             self.label_timer = 1.8
+            sound.play("click")
         elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
             self.label_timer = 0.0
             return self._activate_selected_action()

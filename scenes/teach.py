@@ -3,6 +3,7 @@
 import pygame
 
 import settings
+from core import sound
 from core.animator import load_species_animations
 from core.pet import MAX_DAILY_TRAINS, Pet
 from core.save_manager import save_pet
@@ -103,6 +104,7 @@ class TeachScene:
     def _finish_drill(self) -> None:
         stat_key = STAT_DRILLS[self.cursor_idx][0]
         self.result = self.pet.apply_training(stat_key, self.drill_points)
+        sound.play("level_up" if self.result.get("leveled_up") else "victory")
         save_pet(self.pet)
         self.phase = "result"
         self.animator.play("happy", restart=True, next_anim="idle")

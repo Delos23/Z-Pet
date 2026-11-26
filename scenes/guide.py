@@ -6,6 +6,7 @@ import settings
 from core.animator import recolor_surface
 from core.display import KEYS_DOWN, KEYS_LEFT, KEYS_RIGHT, KEYS_UP
 from core.save_manager import get_save_preview, load_discovered_species, record_discovery
+from core import sound
 from core.species import (
     ADULT_EVOLVE_LEVEL,
     CARE_PATH_META,
@@ -246,20 +247,26 @@ class GuideScene:
             return None
 
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            sound.play("back")
             if self.return_to == "status" and self.pet is not None:
                 return ("status", {"pet": self.pet})
             return ("title", {})
 
         if event.key in KEYS_LEFT:
             self.tab_idx = (self.tab_idx - 1) % len(TABS)
+            sound.play("click")
         elif event.key in KEYS_RIGHT or event.key == pygame.K_TAB:
             self.tab_idx = (self.tab_idx + 1) % len(TABS)
+            sound.play("click")
         elif event.key == pygame.K_1:
             self.tab_idx = 0
+            sound.play("click")
         elif event.key == pygame.K_2:
             self.tab_idx = 1
+            sound.play("click")
         elif event.key == pygame.K_3:
             self.tab_idx = 2
+            sound.play("click")
         elif event.key in KEYS_UP:
             if self.tab_idx == 0:
                 self.species_idx = (self.species_idx - 1) % len(self.catalog)
@@ -267,6 +274,7 @@ class GuideScene:
                 self.trait_idx = (self.trait_idx - 1) % len(TRAIT_DETAILS)
             else:
                 self.care_idx = (self.care_idx - 1) % len(CARE_TOPICS)
+            sound.play("click")
         elif event.key in KEYS_DOWN:
             if self.tab_idx == 0:
                 self.species_idx = (self.species_idx + 1) % len(self.catalog)
@@ -274,6 +282,7 @@ class GuideScene:
                 self.trait_idx = (self.trait_idx + 1) % len(TRAIT_DETAILS)
             else:
                 self.care_idx = (self.care_idx + 1) % len(CARE_TOPICS)
+            sound.play("click")
         return None
 
     def update(self, dt: float) -> None:

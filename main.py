@@ -12,6 +12,7 @@ import pygame
 import settings
 from core.display import DisplayBackend, load_ui_font, prepare_environment
 from core.save_manager import load_config
+from core import sound
 from scenes.evolve import EvolveScene
 from scenes.home import HomeScene
 from scenes.menu import NewPetScene, SettingsScene, TitleScene
@@ -61,6 +62,7 @@ def main() -> None:
 
     config = load_config()
     scene = TitleScene(fonts, config)
+    sound.init(enabled=config.get("sound", True))
     running = True
 
     def switch_scene(next_name: str, payload: dict) -> None:

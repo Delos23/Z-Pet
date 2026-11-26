@@ -6,6 +6,7 @@ import pygame
 
 import settings
 from core.animator import PET_COLOR_ORDER, PET_COLOR_PALETTES, load_species_animations
+from core import sound
 from core.species import get_personality, get_species, get_starter_ids
 from core.save_manager import (
     create_new_pet,
@@ -417,115 +418,117 @@ class NewPetScene:
 
 
 class SettingsScene:
-    """Persistent user preferences saved to ~/.config/z-pet/config.json."""
+    """User preferences: Sound FX, 12h/24h Clock, Window Sky, and Game Speed."""
 
     accepts_text_input = False
 
     def __init__(self, fonts: dict, config: dict):
         self.fonts = fonts
         self.config = config
-        self.stars = _make_stars(20)
-        self.elapsed = 0.0
+        self.rows = ["sound", "clock_24h", "sky_mode", "time_scale", "back"]
         self.cursor = 0
-        self.rows = ["clock", "sky", "speed", "back"]
 
-    def _cycle_option(self, direction: int) -> None:
+    def _cycle_option(self, delta: int) -> None:
         key = self.rows[self.cursor]
-        if key == "clock":
+        if key == "sound":
+            self.config["sound"] = not self.config.get("sound", True)
+            sound.set_enabled(self.config["sound"])
+            if self.config["sound"]:
+                sound.play("select")
+        elif key == "clock_24h":
             self.config["clock_24h"] = not self.config.get("clock_24h", False)
-        elif key == "sky":
-            modes = [m[0] for m in SKY_OPTIONS]
+            sound.play("click")
+        elif key == "sky_mode":
+            modes = ["auto", "dawn", "day", "sunset", "night"]
             cur = self.config.get("sky_mode", "auto")
             idx = modes.index(cur) if cur in modes else 0
-            self.config["sky_mode"] = modes[(idx + direction) % len(modes)]
-        elif key == "speed":
-            scales = [s[0] for s in SPEED_OPTIONS]
+            self.config["sky_mode"] = modes[(idx + delta) % len(modes)]
+            sound.play("click")
+        elif key == "time_scale":
+            scales = [1.0, 10.0, 60.0]
             cur = float(self.config.get("time_scale", 1.0))
             idx = scales.index(cur) if cur in scales else 0
-            self.config["time_scale"] = scales[(idx + direction) % len(scales)]
+            self.config["time_scale"] = scales[(idx + delta) % len(scales)]
+            sound.play("click")
         save_config(self.config)
 
     def _value_label(self, key: str) -> str:
-        if key == "clock":
-            return "24-Hour" if self.config.get("clock_24h") else "12-Hour"
-        if key == "sky":
-            cur = self.config.get("sky_mode", "auto")
-            for mode_id, label in SKY_OPTIONS:
-                if mode_id == cur:
-                    return label
-            return "Auto"
-        if key == "speed":
-            cur = float(self.config.get("time_scale", 1.0))
-            for scale_val, label in SPEED_OPTIONS:
-                if scale_val == cur:
-                    return label
-            return "1x Normal"
+        if key == "sound":
+            return "ON" if self.config.get("sound", True) else "OFF"
+        if key == "clock_24h":
+            return "24-Hour" if self.config.get("clock_24h", False) else "12-Hour"
+        if key == "sky_mode":
+            return str(self.config.get("sky_mode", "auto")).title()
+        if key == "time_scale":
+            s = float(self.config.get("time_scale", 1.0))
+            return "1x Normal" if s == 1.0 else (f"{int(s)}x Fast" if s == 10.0 else f"{int(s)}x Test")
         return ""
 
     def handle_event(self, event: pygame.event.Event) -> tuple[str, dict] | None:
         if event.type != pygame.KEYDOWN:
             return None
-
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
-          return ("title", {})
+            sound.play("back")
+            return ("title", {})
         if event.key in KEYS_UP:
-          self.cursor = (self.cursor - 1) % len(self.rows)
+            self.cursor = (self.cursor - 1) % len(self.rows)
+            sound.play("click")
         elif event.key in KEYS_DOWN:
-          self.cursor = (self.cursor + 1) % len(self.rows)
+            self.cursor = (self.cursor + 1) % len(self.rows)
+            sound.play("click")
         elif event.key in KEYS_LEFT:
-          if self.rows[self.cursor] != "back":
-              self._cycle_option(-1)
+            if self.rows[self.cursor] != "back":
+                self._cycle_option(-1)
         elif event.key in KEYS_RIGHT:
-          if self.rows[self.cursor] != "back":
-              self._cycle_option(1)
+            if self.rows[self.cursor] != "back":
+                self._cycle_option(1)
         elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-          if self.rows[self.cursor] == "back":
-              return ("title", {})
-          self._cycle_option(1)
+            if self.rows[self.cursor] == "back":
+                sound.play("back")
+                return ("title", {})
+            self._cycle_option(1)
+        return None
 
     def update(self, dt: float) -> None:
-        self.elapsed += dt
+        return None
 
     def render(self, canvas: pygame.Surface) -> None:
-        _draw_starfield(canvas, self.stars, self.elapsed)
-
-        card = pygame.Rect(14, 8, 292, 132)
-        pygame.draw.rect(canvas, settings.COLOR_PANEL, card, border_radius=6)
-        pygame.draw.rect(canvas, settings.COLOR_ACCENT, card, 1, border_radius=6)
-
-        header = self.fonts["sans"].render("SETTINGS", True, settings.COLOR_ACCENT)
-        canvas.blit(header, ((settings.LOGICAL_WIDTH - header.get_width()) // 2, 13))
-        pygame.draw.line(canvas, (72, 54, 108), (24, 31), (296, 31), 1)
+        canvas.fill(settings.COLOR_BG)
+        pygame.draw.rect(canvas, settings.COLOR_PANEL, (0, 0, settings.LOGICAL_WIDTH, 24))
+        pygame.draw.line(canvas, settings.COLOR_ACCENT, (0, 24), (settings.LOGICAL_WIDTH, 24), 1)
+        title_s = self.fonts["sans"].render("SETTINGS", True, (255, 224, 96))
+        canvas.blit(title_s, (10, 4))
 
         labels = {
-            "clock": "Clock Format",
-            "sky": "Window Sky",
-            "speed": "Game Speed",
-            "back": "Save & Back",
+            "sound": "Sound FX",
+            "clock_24h": "Clock Format",
+            "sky_mode": "Window Sky",
+            "time_scale": "Game Speed",
+            "back": "Back to Menu",
         }
 
         for idx, key in enumerate(self.rows):
-            row_y = 37 + idx * 24
-            row_rect = pygame.Rect(22, row_y, 276, 22)
-            is_selected = idx == self.cursor
+            ry = 30 + idx * 23
+            rect = pygame.Rect(14, ry, 292, 20)
+            selected = idx == self.cursor
+            pygame.draw.rect(canvas, (76, 52, 122) if selected else settings.COLOR_PANEL, rect, border_radius=4)
+            pygame.draw.rect(
+                canvas,
+                (105, 225, 145) if selected else settings.COLOR_ACCENT,
+                rect,
+                1,
+                border_radius=4,
+            )
 
-            if is_selected:
-                pygame.draw.rect(canvas, SEL_FILL, row_rect, border_radius=4)
-                pygame.draw.rect(canvas, settings.COLOR_ACCENT, row_rect, 1, border_radius=4)
+            lbl_s = self.fonts["sans"].render(
+                labels[key], True, settings.COLOR_TEXT if selected else settings.COLOR_MUTED
+            )
+            canvas.blit(lbl_s, (24, ry + 2))
 
-            text_col = settings.COLOR_TEXT if is_selected else settings.COLOR_MUTED
-            if key == "back":
-                lbl = self.fonts["sans"].render(
-                    labels[key], True, GOOD_COLOR if is_selected else settings.COLOR_MUTED
-                )
-                canvas.blit(lbl, ((settings.LOGICAL_WIDTH - lbl.get_width()) // 2, row_y + 3))
-            else:
-                lbl = self.fonts["sans"].render(labels[key], True, text_col)
-                canvas.blit(lbl, (30, row_y + 3))
-
-                val_txt = f"< {self._value_label(key)} >" if is_selected else self._value_label(key)
-                val_col = GOOD_COLOR if is_selected else settings.COLOR_ACCENT
-                val_surf = self.fonts["mono"].render(val_txt, True, val_col)
-                canvas.blit(val_surf, (290 - val_surf.get_width(), row_y + 3))
+            if key != "back":
+                val_txt = f"< {self._value_label(key)} >"
+                val_col = (105, 225, 145) if (key == "sound" and self.config.get("sound", True)) else (255, 224, 96)
+                val_s = self.fonts["mono"].render(val_txt, True, val_col if selected else settings.COLOR_MUTED)
+                canvas.blit(val_s, (rect.right - val_s.get_width() - 10, ry + 2))
 
         _draw_footer(canvas, self.fonts["sans"], "↑/↓:Row  ←/→:Change  Esc:Back")

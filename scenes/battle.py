@@ -12,6 +12,7 @@ from core.abilities import (
     resolve_action,
     spawn_wild_rival,
 )
+from core import sound
 from core.animator import load_species_animations
 from core.display import KEYS_LEFT, KEYS_RIGHT
 from core.pet import Pet
@@ -84,6 +85,13 @@ class BattleScene:
         self.elapsed = 0.0
         self.last_toast = ""
         self._start_match()
+        if self.is_boss:
+            sound.play("boss")
+            self.log_text = (
+                f"ELITE {self.rival['boss_title']} {self.rival['name']} Lv.{self.rival['level']}!"
+            )
+        else:
+            self.log_text = f"Wild {self.rival['name']} Lv.{self.rival['level']} appeared!"
 
     def _start_match(self) -> None:
         self.player = make_fighter_from_pet(self.pet)
@@ -178,6 +186,20 @@ class BattleScene:
         self.phase = "executing"
         self.step_timer = 0.05
 
+    def _play_combat_sfx(self, action: str, res: dict) -> None:
+        if action == "guard":
+            sound.play("guard")
+        elif res["dodged"]:
+            sound.play("dodge")
+        elif action == "skill":
+            sound.play("crit" if res["crit"] else "skill")
+        elif res["crit"]:
+            sound.play("crit")
+        else:
+            sound.play("hit")
+        if res["healed"] > 0 and action != "guard":
+            sound.play("heal")
+
     def _run_next_step(self) -> None:
         if self.player["hp"] <= 0 or self.rival["hp"] <= 0:
             self._finish_battle()
@@ -203,6 +225,7 @@ class BattleScene:
                         self.r_shake = 0.25
                     msgs.append(f"{f['dot_label']} hit {f['name']} -{dmg}!")
             if msgs:
+                sound.play("hit")
                 self.log_text = msgs[0]
                 self.step_timer = 0.75
             else:
@@ -214,6 +237,7 @@ class BattleScene:
 
         if actor == "player":
             res = resolve_action(self.player, self.rival, action)
+            self._play_combat_sfx(action, res)
             self.log_text = res["message"]
             if action != "guard":
                 self.p_lunge = 0.22
@@ -231,6 +255,7 @@ class BattleScene:
                 self._add_popup(f"-{res['reflected']}", 62, 82, HP_WARN)
         else:
             res = resolve_action(self.rival, self.player, action)
+            self._play_combat_sfx(action, res)
             self.log_text = res["message"]
             if action != "guard":
                 self.r_lunge = 0.22
@@ -261,6 +286,7 @@ class BattleScene:
         save_pet(self.pet)
         self.phase = "result"
         if won:
+            sound.play("level_up" if self.result_info.get("leveled_up") else "victory")
             self.player_anim.play("happy", restart=True, next_anim="idle")
             if self.is_boss and self.result_info.get("stat_reward"):
                 st_k, st_v = self.result_info["stat_reward"]
@@ -270,6 +296,7 @@ class BattleScene:
             else:
                 self.last_toast = f"Won vs {self.rival['name']}! +{self.result_info['xp_gain']} XP"
         else:
+            sound.play("defeat")
             self.last_toast = f"Tough fight! +{self.result_info['xp_gain']} XP"
 
     def on_exit(self) -> None:
@@ -281,22 +308,29 @@ class BattleScene:
 
         if self.phase == "choose":
             if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                sound.play("back")
                 return ("home", {"pet": self.pet, "return_toast": "Left the Arena."})
             if event.key in KEYS_LEFT:
                 self.cmd_idx = (self.cmd_idx - 1) % len(COMMANDS)
+                sound.play("click")
             elif event.key in KEYS_RIGHT:
                 self.cmd_idx = (self.cmd_idx + 1) % len(COMMANDS)
+                sound.play("click")
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                 cmd_id = COMMANDS[self.cmd_idx][0]
                 if cmd_id == "flee":
+                    sound.play("back")
                     return ("home", {"pet": self.pet, "return_toast": "Escaped safely!"})
                 if cmd_id == "skill" and self.player["sp"] < 2:
+                    sound.play("error")
                     self.log_text = "Need 2 SP! Use Strike or Guard first."
                     return None
+                sound.play("select")
                 self._queue_turn(cmd_id)
 
         elif self.phase == "result":
             if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                sound.play("back")
                 won = bool(self.result_info and self.result_info["won"])
                 return (
                     "home",
@@ -309,8 +343,10 @@ class BattleScene:
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                 ok, msg = self.pet.can_battle()
                 if ok:
+                    sound.play("select")
                     self._start_match()
                 else:
+                    sound.play("error")
                     return ("home", {"pet": self.pet, "return_toast": msg, "return_anim": "idle"})
         return None
 

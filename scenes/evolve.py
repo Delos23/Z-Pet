@@ -5,6 +5,7 @@ import random
 import pygame
 
 import settings
+from core import sound
 from core.animator import load_species_animations
 from core.pet import Pet
 from core.save_manager import save_pet
@@ -56,6 +57,7 @@ class EvolveScene:
     def _complete_evolution(self) -> None:
         if self.evolve_info is None:
             self.evolve_info = self.pet.evolve(self.target_species_id)
+            sound.play("evolve")
             save_pet(self.pet)
             self.new_anim.play("happy", restart=True, next_anim="idle")
 

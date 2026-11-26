@@ -5,6 +5,7 @@ import random
 import pygame
 
 import settings
+from core import sound
 from core.animator import load_species_animations
 from core.pet import Pet
 from core.save_manager import save_pet
@@ -108,6 +109,7 @@ class StarCatchScene:
         self.phase = "result"
         self.held_keys.clear()
         self.result = self.pet.complete_minigame(self.score)
+        sound.play("level_up" if self.result_info.get("leveled_up") else "victory")
         save_pet(self.pet)
         self.animator.play("happy", restart=True, next_anim="idle")
         self.last_reward_toast = (

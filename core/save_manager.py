@@ -15,6 +15,7 @@ DEFAULT_CONFIG: dict = {
     "clock_24h": False,
     "sky_mode": "auto",
     "time_scale": 1.0,
+    "sound": True,
 }
 
 _DISCOVERED_CACHE: set[str] | None = None
@@ -73,6 +74,7 @@ def load_config() -> dict:
             raw = json.load(f)
         if isinstance(raw, dict):
             cfg["clock_24h"] = bool(raw.get("clock_24h", cfg["clock_24h"]))
+            cfg["sound"] = bool(raw.get("sound", cfg["sound"]))
             sky = str(raw.get("sky_mode", cfg["sky_mode"]))
             if sky in ("auto", "dawn", "day", "sunset", "night"):
                 cfg["sky_mode"] = sky
