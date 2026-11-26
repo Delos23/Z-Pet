@@ -56,7 +56,7 @@ OUT_DEB="${DIST_DIR}/${PKG_NAME}_${DEB_VERSION}_${DEB_ARCH}.deb"
 INSTALL_ROOT="/opt/${PKG_NAME}"
 
 # Verify critical assets and entrypoints exist before staging
-for req in "main.py" "deploy/run_zpet.sh" "$ICON_REL"; do
+for req in "main.py" "data/species.json" "deploy/run_zpet.sh" "$ICON_REL"; do
     if [ ! -f "$REPO_DIR/$req" ]; then
         echo "Error: required file missing: $req" >&2
         exit 1
@@ -71,7 +71,7 @@ mkdir -p \
     "$STAGE_DIR/DEBIAN" \
     "$PKG_APP_DIR" \
     "$STAGE_DIR/usr/bin" \
-    "$STAGE_DIR/usr/share/applications"
+    "$STAGE_DIR/usr/share/APPLaunch/applications"
 
 # Copy runtime files while excluding dev environments, caches, and user saves
 copy_tree() {
@@ -100,7 +100,7 @@ copy_tree() {
     fi
 }
 
-for item in main.py settings.py app-builder.json README.md LICENSE core scenes assets deploy; do
+for item in main.py settings.py app-builder.json README.md LICENSE core scenes data assets deploy; do
     copy_tree "$item"
 done
 
@@ -115,12 +115,13 @@ find "$PKG_APP_DIR/deploy" -type f -name '*.sh' -exec sed -i 's/\r$//' {} +
 # Create CLI symlink (/usr/bin/z-pet -> /opt/z-pet/deploy/run_zpet.sh)
 ln -s "${INSTALL_ROOT}/deploy/run_zpet.sh" "$STAGE_DIR/usr/bin/${PKG_NAME}"
 
-# Create APPLaunch / XDG desktop launcher
-cat > "$STAGE_DIR/usr/share/applications/${PKG_NAME}.desktop" <<EOF
+# Create APPLaunch desktop launcher
+cat > "$STAGE_DIR/usr/share/APPLaunch/applications/${PKG_NAME}.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=${APP_NAME}
 Comment=${SUMMARY}
+Path=${INSTALL_ROOT}
 Exec=${INSTALL_ROOT}/deploy/run_zpet.sh
 Icon=${INSTALL_ROOT}/${ICON_REL}
 Terminal=false

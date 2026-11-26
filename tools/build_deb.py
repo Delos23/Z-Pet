@@ -22,6 +22,7 @@ INCLUDE_ITEMS = (
     "LICENSE",
     "core",
     "scenes",
+    "data",
     "assets",
     "deploy",
 )
@@ -194,7 +195,7 @@ def main() -> int:
     author_name = str(author.get("display_name", "Aaron Bumbarger"))
     author_gh = str(author.get("github", "delos23"))
 
-    for req in ("main.py", "deploy/run_zpet.sh", icon_rel):
+    for req in ("main.py", "data/species.json", "deploy/run_zpet.sh", icon_rel):
         if not (REPO_DIR / req).is_file():
             print(f"Error: required file missing: {req}", file=sys.stderr)
             return 1
@@ -250,7 +251,7 @@ def main() -> int:
             "Categories=Game;\n"
             "StartupNotify=false\n"
         ).encode("utf-8")
-        _add_tar_bytes(tar, f"usr/share/applications/{pkg_name}.desktop", desktop_text, 0o644, mtime, seen_dirs)
+        _add_tar_bytes(tar, f"usr/share/APPLaunch/applications/{pkg_name}.desktop", desktop_text, 0o644, mtime, seen_dirs)
         total_bytes += len(desktop_text)
         file_count += 1
 
