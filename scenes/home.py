@@ -495,6 +495,19 @@ class HomeScene:
         self.elapsed = 0.0
         self.hearts: list[dict] = []
 
+        if pet.alive and pet.sleeping:
+         self.bed_state = "sleeping"
+         self.pet_x = float(WALK_TO_BED_X)
+         self.target_x = self.pet_x
+         self.lamp_dim = 1.0
+         self.animator.facing_left = False
+         self.animator.play("sleep", restart=True)
+        else:
+         self.bed_state = "awake"
+         self.pet_x = 112.0
+         self.target_x = self._pick_new_target(112.0)
+         self.lamp_dim = 0.0
+         
         if is_new:
             self.animator.play("happy", restart=True, next_anim="idle")
             self.spawn_hearts(4)
@@ -845,7 +858,7 @@ class HomeScene:
             pygame.draw.rect(canvas, settings.COLOR_PANEL, (pill_x, pill_y, pill_w, pill_h), border_radius=4)
             pygame.draw.rect(canvas, BAR_GOOD, (pill_x, pill_y, pill_w, pill_h), 1, border_radius=4)
             canvas.blit(lbl_surf, (pill_x + 5, pill_y + 1))
-            
+
     def _draw_hud(self, canvas: pygame.Surface, clock_str: str) -> None:
         font_sans = self.fonts["sans"]
         font_mono = self.fonts["mono"]

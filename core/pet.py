@@ -8,7 +8,7 @@ DEFAULT_TIME_SCALE = 1.0
 
 MAX_POOPS = 4
 POOP_INTERVAL_SEC = 90 * 60
-MAX_OFFLINE_SEC = 48 * 3600
+MAX_OFFLINE_SEC = 72 * 3600         # Allows offline catch-up past the 48h mark
 HUG_COOLDOWN_SEC = 6.0
 
 MAX_DAILY_TRAINS = 3
@@ -16,8 +16,9 @@ SLEEP_ENERGY_PER_MIN = 1.25
 MAX_LEVEL = 30
 MAX_STAT = 150
 
-# Leaving severe needs (<15%) or 3+ poops unattended for 30 sim-minutes adds 1 care mistake
-NEGLECT_MISTAKE_SEC = 30 * 60
+# Neglect & survival thresholds
+NEGLECT_MISTAKE_SEC = 60 * 60       # 1 hour at <15% stats (or 3+ poops) = +1 Care Mistake
+UNATTENDED_DEATH_SEC = 48 * 3600    # Pet only faints after 2 full days (48h) unattended
 
 
 def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
@@ -25,7 +26,7 @@ def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
 
 
 class Pet:
-    """Tracks care stats, species, personality, base color, XP/level, care mistakes, and evolution."""
+    """Tracks care stats, species, personality, base color, XP/level, battles, and 2-day survival."""
 
     def __init__(self, data: dict | None = None):
         now = time.time()
@@ -38,7 +39,7 @@ class Pet:
         self.color: str = str(data.get("color", "purple"))
         self.stage: str = str(data.get("stage", sp.get("stage", "baby")))
 
-        # Leveling & signature ability (starters now begin with their own ability too!)
+        # Leveling & signature ability
         self.level: int = max(1, min(MAX_LEVEL, int(data.get("level", 1))))
         self.xp: int = max(0, int(data.get("xp", 0)))
         default_ability = sp["ability"]["name"] if sp.get("ability") else None
@@ -54,9 +55,10 @@ class Pet:
         self.alive: bool = bool(data.get("alive", True))
         self.bond: int = int(data.get("bond", 0))
 
-        # Timestamps
+        # Timestamps & 2-day unattended tracker
         self.born_at: float = float(data.get("born_at", now))
         self.last_update: float = float(data.get("last_update", now))
+        self.unattended_sec: float = float(data.get("unattended_sec", 0.0))
         self._last_hug_time: float = 0.0
 
         # Floor poops & care-mistake neglect tracker
@@ -85,7 +87,11 @@ class Pet:
 
     @property
     def xp_to_next(self) -> int:
-     return 20 + self.level * 25
+        return 20 + self.level * 25
+
+    def _mark_attended(self) -> None:
+        """Resets the 2-day unattended timer whenever the player cares for the pet."""
+        self.unattended_sec = 0.0
 
     def _sync_daily_trains(self) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
@@ -120,7 +126,7 @@ class Pet:
             for stat_k in ("atk", "def", "spd", "int"):
                 inc = int(growth.get(stat_k, 1))
                 old_v = int(self.battle_stats.get(stat_k, 5))
-                new_v = min(99, old_v + inc)
+                new_v = min(MAX_STAT, old_v + inc)
                 self.battle_stats[stat_k] = new_v
                 total_ups[stat_k] += new_v - old_v
 
@@ -138,7 +144,7 @@ class Pet:
         return find_evolution(self)
 
     def evolve(self, target_species_id: str) -> dict:
-        """Transforms the pet into its care-driven adult form and unlocks its evolved ability."""
+        """Transforms the pet into its care-driven Teen/Adult form and unlocks its ability."""
         care_path = evaluate_care_path(self, final_check=True)
         care_label = CARE_PATH_META.get(care_path, ("Radiant", (105, 225, 145)))[0]
 
@@ -153,7 +159,7 @@ class Pet:
         for stat_k in ("atk", "def", "spd", "int"):
             inc = int(bonus.get(stat_k, 2))
             old_v = int(self.battle_stats.get(stat_k, 10))
-            new_v = min(99, old_v + inc)
+            new_v = min(MAX_STAT, old_v + inc)
             self.battle_stats[stat_k] = new_v
             applied_bonus[stat_k] = new_v - old_v
 
@@ -207,6 +213,7 @@ class Pet:
             "bond": self.bond,
             "born_at": self.born_at,
             "last_update": self.last_update,
+            "unattended_sec": round(self.unattended_sec, 2),
             "poops": self.poops,
             "poop_timer": round(self.poop_timer, 2),
             "care_mistakes": self.care_mistakes,
@@ -239,21 +246,20 @@ class Pet:
 
         if self.sleeping:
             self.energy = clamp(self.energy + dt_min * SLEEP_ENERGY_PER_MIN * p["sleep_mult"])
-            self.hunger = clamp(self.hunger - dt_min * 0.04 * p["hunger_decay"])
-            self.happy = clamp(self.happy - dt_min * 0.02 * p["happy_decay"])
-            self.clean = clamp(self.clean - dt_min * (0.02 + poop_penalty * 0.05) * p["clean_decay"])
+            self.hunger = clamp(self.hunger - dt_min * 0.02 * p["hunger_decay"])
+            self.happy = clamp(self.happy - dt_min * 0.015 * p["happy_decay"])
+            self.clean = clamp(self.clean - dt_min * (0.015 + poop_penalty * 0.04) * p["clean_decay"])
         else:
-            self.hunger = clamp(self.hunger - dt_min * 0.15 * p["hunger_decay"])
-            self.happy = clamp(self.happy - dt_min * (0.12 + poop_penalty * 0.06) * p["happy_decay"])
-            self.energy = clamp(self.energy - dt_min * 0.10 * p["energy_decay"])
-            self.clean = clamp(self.clean - dt_min * (0.05 + poop_penalty * 0.12) * p["clean_decay"])
+            self.hunger = clamp(self.hunger - dt_min * 0.08 * p["hunger_decay"])
+            self.happy = clamp(self.happy - dt_min * (0.07 + poop_penalty * 0.04) * p["happy_decay"])
+            self.energy = clamp(self.energy - dt_min * 0.06 * p["energy_decay"])
+            self.clean = clamp(self.clean - dt_min * (0.04 + poop_penalty * 0.08) * p["clean_decay"])
 
             self.poop_timer += sim_seconds
             while self.poop_timer >= POOP_INTERVAL_SEC:
                 self.poop_timer -= POOP_INTERVAL_SEC
                 self._spawn_poop()
 
-            # Track sustained neglect for Care Mistakes (drives Wild vs Radiant evolution)
             neglected = (
                 self.hunger < 15.0
                 or self.happy < 15.0
@@ -268,7 +274,9 @@ class Pet:
             else:
                 self.neglect_timer = max(0.0, self.neglect_timer - sim_seconds * 0.5)
 
-        if self.hunger <= 0.0 or (self.energy <= 0.0 and self.clean <= 0.0):
+        # Track total time without player care; only die after 48 full hours unattended
+        self.unattended_sec += sim_seconds
+        if self.unattended_sec >= UNATTENDED_DEATH_SEC:
             self.care_mistakes += 1
             self.alive = False
 
@@ -294,14 +302,15 @@ class Pet:
         self._simulate_slice(dt * time_scale)
         self.last_update = time.time()
 
-    # --- Care Actions (Personality-aware!) ---
+    # --- Care Actions (all reset the 2-day unattended timer) ---
 
     def feed(self) -> tuple[bool, str]:
         if not self.alive:
-            return False, "Press [R] to hatch a new egg."
+            return False, "Press [Enter] to hatch a new egg."
         if self.sleeping:
             return False, f"Shh! {self.name} is sleeping."
         if self.hunger >= 99.0:
+            self._mark_attended()
             return False, "Too full for a meal!"
 
         p = self.personality
@@ -310,6 +319,7 @@ class Pet:
         self.clean = clamp(self.clean - 4.0)
         self.bond = min(999, self.bond + 1)
         self.poop_timer += 10 * 60
+        self._mark_attended()
         xp_amt = round(6 * p["care_xp_mult"])
         xp_res = self.add_xp(xp_amt)
         if xp_res["leveled_up"]:
@@ -318,10 +328,11 @@ class Pet:
 
     def give_treat(self) -> tuple[bool, str]:
         if not self.alive:
-            return False, "Press [R] to hatch a new egg."
+            return False, "Press [Enter] to hatch a new egg."
         if self.sleeping:
             return False, f"Shh! {self.name} is sleeping."
         if self.hunger >= 99.0 and self.happy >= 99.0:
+            self._mark_attended()
             return False, f"{self.name} is already stuffed!"
 
         p = self.personality
@@ -331,6 +342,7 @@ class Pet:
         self.clean = clamp(self.clean - 2.0)
         self.bond = min(999, self.bond + bond_gain)
         self.poop_timer += 5 * 60
+        self._mark_attended()
         xp_amt = round(4 * p["care_xp_mult"])
         xp_res = self.add_xp(xp_amt)
         if xp_res["leveled_up"]:
@@ -339,11 +351,11 @@ class Pet:
 
     def can_play(self) -> tuple[bool, str]:
         if not self.alive:
-            return False, "Press [R] to hatch a new egg."
+            return False, "Press [Enter] to hatch a new egg."
         if self.sleeping:
-            return False, f"Wake {self.name} first [S]."
+            return False, f"Wake {self.name} first!"
         if self.energy < 15.0:
-            return False, "Too tired to play! [S] Bed."
+            return False, "Too tired to play! Put to bed."
         return True, ""
 
     def complete_minigame(self, score: int) -> dict:
@@ -357,9 +369,10 @@ class Pet:
         self.energy = clamp(self.energy - 12.0)
         self.hunger = clamp(self.hunger - 6.0)
         self.bond = min(999, self.bond + bond_gain)
+        self._mark_attended()
 
         if spd_bonus:
-            self.battle_stats["spd"] = min(99, self.battle_stats.get("spd", 10) + spd_bonus)
+            self.battle_stats["spd"] = min(MAX_STAT, self.battle_stats.get("spd", 10) + spd_bonus)
 
         is_new_best = score > self.high_score
         if is_new_best:
@@ -382,15 +395,15 @@ class Pet:
 
     def can_train(self) -> tuple[bool, str]:
         if not self.alive:
-            return False, "Press [R] to hatch a new egg."
+            return False, "Press [Enter] to hatch a new egg."
         if self.sleeping:
-            return False, f"Wake {self.name} first [S]."
+            return False, f"Wake {self.name} first!"
         if self.trainings_remaining <= 0:
             return False, f"Daily limit ({MAX_DAILY_TRAINS}/{MAX_DAILY_TRAINS}) reached!"
         if self.energy < 15.0:
-            return False, "Too tired to train! [S] Bed."
+            return False, "Too tired to train! Put to bed."
         if self.hunger < 15.0:
-            return False, "Too hungry to train! [F] Eat."
+            return False, "Too hungry to train! Feed first."
         return True, ""
 
     def apply_training(self, stat_key: str, drill_points: int) -> dict:
@@ -409,7 +422,7 @@ class Pet:
         else:
             grade, stat_gain, bond_gain, happy_gain = "NICE TRY", 1, 1, 2
 
-        new_val = min(99, old_val + stat_gain)
+        new_val = min(MAX_STAT, old_val + stat_gain)
         actual_gain = new_val - old_val
         self.battle_stats[stat_key] = new_val
         self.training_sessions += 1
@@ -419,6 +432,7 @@ class Pet:
         self.hunger = clamp(self.hunger - 7.0)
         self.happy = clamp(self.happy + happy_gain)
         self.bond = min(999, self.bond + bond_gain)
+        self._mark_attended()
 
         xp_amt = round((15 + drill_points * 4) * p["train_xp_mult"])
         xp_res = self.add_xp(xp_amt)
@@ -438,58 +452,60 @@ class Pet:
         }
 
     def can_battle(self) -> tuple[bool, str]:
-     if not self.alive:
-         return False, "Press [Enter] to hatch a new egg."
-     if self.sleeping:
-         return False, f"Wake {self.name} first!"
-     if self.energy < 18.0:
-         return False, "Too tired to battle! Put to bed."
-     if self.hunger < 15.0:
-         return False, "Too hungry to battle! Feed first."
-     return True, ""
+        if not self.alive:
+            return False, "Press [Enter] to hatch a new egg."
+        if self.sleeping:
+            return False, f"Wake {self.name} first!"
+        if self.energy < 18.0:
+            return False, "Too tired to battle! Put to bed."
+        if self.hunger < 15.0:
+            return False, "Too hungry to battle! Feed first."
+        return True, ""
 
     def complete_battle(self, won: bool, enemy_level: int) -> dict:
-     """Applies Battle Arena XP, Bond, care costs, and streak tracking."""
-     if won:
-         self.battle_wins += 1
-         self.win_streak += 1
-         self.best_streak = max(self.best_streak, self.win_streak)
-         self.energy = clamp(self.energy - 15.0)
-         self.hunger = clamp(self.hunger - 6.0)
-         self.happy = clamp(self.happy + 8.0)
-         bond_gain = 2 + min(3, self.win_streak // 2)
-         self.bond = min(999, self.bond + bond_gain)
-         xp_amt = 18 + enemy_level * 4 + min(25, self.win_streak * 3)
-     else:
-         self.win_streak = 0
-         self.energy = clamp(self.energy - 18.0)
-         self.hunger = clamp(self.hunger - 6.0)
-         self.happy = clamp(self.happy - 5.0)
-         bond_gain = 1
-         self.bond = min(999, self.bond + bond_gain)
-         xp_amt = 8 + enemy_level
+        """Applies Battle Arena XP, Bond, care costs, and streak tracking."""
+        self._mark_attended()
+        if won:
+            self.battle_wins += 1
+            self.win_streak += 1
+            self.best_streak = max(self.best_streak, self.win_streak)
+            self.energy = clamp(self.energy - 15.0)
+            self.hunger = clamp(self.hunger - 6.0)
+            self.happy = clamp(self.happy + 8.0)
+            bond_gain = 2 + min(3, self.win_streak // 2)
+            self.bond = min(999, self.bond + bond_gain)
+            xp_amt = 18 + enemy_level * 4 + min(25, self.win_streak * 3)
+        else:
+            self.win_streak = 0
+            self.energy = clamp(self.energy - 18.0)
+            self.hunger = clamp(self.hunger - 6.0)
+            self.happy = clamp(self.happy - 5.0)
+            bond_gain = 1
+            self.bond = min(999, self.bond + bond_gain)
+            xp_amt = 8 + enemy_level
 
-     xp_res = self.add_xp(xp_amt)
-     return {
-         "won": won,
-         "xp_gain": xp_res["xp_gain"],
-         "leveled_up": xp_res["leveled_up"],
-         "new_level": xp_res["new_level"],
-         "bond_gain": bond_gain,
-         "battle_wins": self.battle_wins,
-         "win_streak": self.win_streak,
-         "best_streak": self.best_streak,
-     }
+        xp_res = self.add_xp(xp_amt)
+        return {
+            "won": won,
+            "xp_gain": xp_res["xp_gain"],
+            "leveled_up": xp_res["leveled_up"],
+            "new_level": xp_res["new_level"],
+            "bond_gain": bond_gain,
+            "battle_wins": self.battle_wins,
+            "win_streak": self.win_streak,
+            "best_streak": self.best_streak,
+        }
 
     def hug(self) -> tuple[bool, str]:
         if not self.alive:
-            return False, "Press [R] to hatch a new egg."
+            return False, "Press [Enter] to hatch a new egg."
         if self.sleeping:
             return False, "Sweet dreams... (sleeping)"
 
         p = self.personality
         now = time.time()
         self.happy = clamp(self.happy + 6.0)
+        self._mark_attended()
         if now - self._last_hug_time >= HUG_COOLDOWN_SEC:
             self._last_hug_time = now
             bond_gain = 3 + p["hug_bond_bonus"]
@@ -503,8 +519,9 @@ class Pet:
 
     def clean_room(self) -> tuple[bool, str]:
         if not self.alive:
-            return False, "Press [R] to hatch a new egg."
+            return False, "Press [Enter] to hatch a new egg."
 
+        self._mark_attended()
         removed = len(self.poops)
         if removed == 0 and self.clean >= 98.0:
             return False, "Room is already spotless!"
@@ -524,7 +541,8 @@ class Pet:
 
     def toggle_sleep(self) -> tuple[bool, str]:
         if not self.alive:
-            return False, "Press [R] to hatch a new egg."
+            return False, "Press [Enter] to hatch a new egg."
 
+        self._mark_attended()
         self.sleeping = not self.sleeping
         return True, "Tucked into bed... Zzz" if self.sleeping else "Good morning!"
