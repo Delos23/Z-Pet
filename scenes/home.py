@@ -522,7 +522,12 @@ class HomeScene:
             self.show_toast(return_toast, duration=2.6)
         elif offline_seconds >= 60:
             self.show_toast(f"Welcome back! Away {format_duration(offline_seconds)}", duration=3.5)
-        sound.play_music("sleep" if (self.pet.sleeping or not self.pet.alive) else "home")
+        mood = (
+         "somber"
+         if (self.pet.sleeping or not self.pet.alive or sound.is_night_time(self.config))
+         else "day"
+     )
+        sound.set_mood(mood)
     
     def _load_pet_assets(self) -> None:
         sprite_dir = settings.SPRITES_DIR / self.pet.species_id
@@ -749,7 +754,7 @@ class HomeScene:
 
         self.pet.update(dt, time_scale=time_scale)
         self.autosave_timer += dt
-        sound.play_music("sleep" if (self.pet.sleeping or not self.pet.alive) else "home")
+       
         if self.autosave_timer >= 30.0:
             save_pet(self.pet)
             self.autosave_timer = 0.0
