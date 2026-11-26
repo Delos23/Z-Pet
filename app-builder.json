@@ -7,7 +7,11 @@
     "description": "Raise and care for Sparkkit on your Cardputer Zero. Feed meals and star treats, play ball, clean messes, give hugs to build Bond, and watch the bedroom window shift with the real-time clock while your pet tucks into bed.",
     "icon": "assets/images/z_pet_icon.png",
     "screenshots": [
-      "assets/images/screenshot01.png"
+      "assets/images/screenshot01.png",
+      "assets/images/screenshot02.png",
+      "assets/images/screenshot03.png",
+      "assets/images/screenshot04.png",
+      "assets/images/screenshot05.png"
     ],
     "categories": [
       "Games"
@@ -29,4 +33,5 @@
     "license": "MIT",
     "share_code": "ZPET"
   }
+  
 }
