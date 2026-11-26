@@ -214,6 +214,75 @@ def draw_pixel_heart(surf: pygame.Surface, x: int, y: int, color: tuple = HEART_
             if ch == "#":
                 surf.set_at((x + c, y + r), color)
 
+# 11x8 pixel-art Elite Boss Crown (rests flush on the bedroom shelf)
+_BOSS_CROWN_SPRITE = (
+    ".....H.....",
+    "H...HGH...H",
+    "GH.HGGGH.HG",
+    "GGHGGJGGHGG",
+    "DGGGRJRGGGD",
+    "DGGGGGGGGGD",
+    ".DRRRRRRRD.",
+    "..BBBBBBB..",
+)
+
+
+def _draw_boss_crown(
+    canvas: pygame.Surface,
+    x: int,
+    shelf_y: int,
+    boss_wins: int,
+    elapsed: float,
+) -> None:
+    """Draws the unlockable 11x8 Boss Crown trophy at (x, shelf_y) with sparkles."""
+    if boss_wins < 1:
+        return
+
+    # Center jewel upgrades with higher Elite Boss milestones
+    if boss_wins >= 4:       # Mythic
+        gem_core, gem_trim = (240, 248, 255), (175, 130, 255)
+    elif boss_wins >= 3:     # Titan
+        gem_core, gem_trim = (232, 165, 255), (150, 62, 220)
+    elif boss_wins >= 2:     # Apex
+        gem_core, gem_trim = (145, 238, 255), (48, 145, 225)
+    else:                    # Alpha
+        gem_core, gem_trim = (255, 130, 150), (205, 38, 68)
+
+    palette = {
+        "H": (255, 248, 175),  # Bright gold highlight
+        "G": (245, 198, 58),   # Royal gold body
+        "D": (176, 124, 24),   # Shaded gold edge
+        "R": gem_trim,         # Tier velvet & bezel
+        "J": gem_core,         # Center jewel core
+        "B": (88, 52, 24),     # Base shadow on shelf
+    }
+
+    top_y = shelf_y - len(_BOSS_CROWN_SPRITE)
+    glint_col = int((elapsed * 10.0) % 28)
+
+    for row_idx, row in enumerate(_BOSS_CROWN_SPRITE):
+        for col_idx, ch in enumerate(row):
+            col = palette.get(ch)
+            if col is None:
+                continue
+            if ch == "G" and col_idx == glint_col and row_idx in (3, 4, 5):
+                col = (255, 252, 210)
+            canvas.set_at((x + col_idx, top_y + row_idx), col)
+
+    # Animated 4-point pixel sparkles around the crown tips
+    sparkle_spots = (
+        (x - 1, top_y + 1, 0.0),
+        (x + 5, top_y - 2, 1.1),
+        (x + 11, top_y + 2, 2.2),
+    )
+    for sx, sy, phase in sparkle_spots:
+        pulse = (elapsed * 2.4 + phase) % 3.0
+        if pulse < 0.35:
+            canvas.set_at((sx, sy), (255, 252, 215))
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                canvas.set_at((sx + dx, sy + dy), (255, 224, 110))
+        elif pulse < 0.70:
+            canvas.set_at((sx, sy), (255, 224, 110))
 
 def draw_room_decorations(
     canvas: pygame.Surface,
@@ -238,7 +307,7 @@ def draw_room_decorations(
     pygame.draw.ellipse(canvas, (62, 42, 94), (94, 133, 84, 6))
 
     # Wall shelf with books, succulent, and Star Catch trophy
-    shelf_x, shelf_y, shelf_w = 84, 74, 62
+    shelf_x, shelf_y, shelf_w = 84, 74, 74
     pygame.draw.rect(canvas, (30, 18, 42), (shelf_x + 2, shelf_y + 4, shelf_w, 3))
     pygame.draw.rect(canvas, (112, 74, 58), (shelf_x, shelf_y, shelf_w, 4))
     pygame.draw.rect(canvas, (148, 102, 82), (shelf_x, shelf_y, shelf_w, 1))
@@ -258,14 +327,15 @@ def draw_room_decorations(
 
     trophy_col = (255, 214, 86) if pet.high_score > 0 else (126, 116, 152)
     trophy_hi = (255, 246, 185) if pet.high_score > 0 else (168, 158, 192)
-    tx = shelf_x + 46
+    tx = shelf_x + 43
     pygame.draw.rect(canvas, (88, 62, 48), (tx, shelf_y - 2, 10, 2))
     pygame.draw.rect(canvas, trophy_col, (tx + 3, shelf_y - 5, 4, 3))
     pygame.draw.rect(canvas, trophy_col, (tx + 1, shelf_y - 12, 8, 7))
     pygame.draw.rect(canvas, trophy_hi, (tx + 2, shelf_y - 11, 2, 4))
     if pet.high_score > 0 and int(elapsed * 3) % 2 == 0:
         canvas.fill((255, 252, 220), (tx + 9, shelf_y - 14, 2, 2))
-
+    _draw_boss_crown(canvas, shelf_x + 59, shelf_y, pet.boss_wins, elapsed)
+   
     # Framed wall poster
     px_x, px_y, px_w, px_h = 166, 48, 28, 24
     pygame.draw.rect(canvas, (20, 14, 34), (px_x + 2, px_y + 2, px_w, px_h))
