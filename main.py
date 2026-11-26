@@ -180,6 +180,7 @@ def main() -> None:
                     break
 
             scene.render(canvas)
+            sound.draw_volume_osd(canvas, fonts["mono"])
 
             if capture_requested:
                 saved_name = save_screenshot(canvas)
