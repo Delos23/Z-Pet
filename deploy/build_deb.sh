@@ -71,7 +71,8 @@ mkdir -p \
     "$STAGE_DIR/DEBIAN" \
     "$PKG_APP_DIR" \
     "$STAGE_DIR/usr/bin" \
-    "$STAGE_DIR/usr/share/APPLaunch/applications"
+    "$STAGE_DIR/usr/share/APPLaunch/applications" \
+    "$STAGE_DIR/usr/share/APPLaunch/share/images"
 
 # Copy runtime files while excluding dev environments, caches, and user saves
 copy_tree() {
@@ -118,6 +119,9 @@ cat > "$STAGE_DIR/usr/bin/${PKG_NAME}" <<EOF
 exec "${INSTALL_ROOT}/deploy/run_zpet.sh" "\$@"
 EOF
 
+cp "$PKG_APP_DIR/${ICON_REL}" "$STAGE_DIR/usr/share/APPLaunch/share/images/${PKG_NAME}.png"
+chmod 0644 "$STAGE_DIR/usr/share/APPLaunch/share/images/${PKG_NAME}.png"
+
 # Create APPLaunch desktop launcher
 cat > "$STAGE_DIR/usr/share/APPLaunch/applications/${PKG_NAME}.desktop" <<EOF
 [Desktop Entry]
@@ -126,7 +130,7 @@ Name=${APP_NAME}
 Comment=${SUMMARY}
 Path=${INSTALL_ROOT}
 Exec=${INSTALL_ROOT}/deploy/run_zpet.sh
-Icon=${INSTALL_ROOT}/${ICON_REL}
+Icon=share/images/${PKG_NAME}.png
 Terminal=false
 Categories=Game;
 StartupNotify=false

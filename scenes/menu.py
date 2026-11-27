@@ -449,10 +449,12 @@ class SettingsScene:
             return False
 
         digit = ""
-        if pygame.K_1 <= event.key <= pygame.K_9:
-            digit = chr(ord("1") + (event.key - pygame.K_1))
-        elif event.unicode in "123456789":
-            digit = event.unicode
+        key = getattr(event, "key", None)
+        uni = getattr(event, "unicode", "")
+        if isinstance(key, int) and pygame.K_1 <= key <= pygame.K_9:
+            digit = chr(ord("1") + (key - pygame.K_1))
+        elif isinstance(uni, str) and len(uni) == 1 and uni in "123456789":
+            digit = uni
 
         if not digit:
             return False
